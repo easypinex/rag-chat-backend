@@ -1,0 +1,5 @@
+{
+    "python.terminal.executeInFileDir": false,
+    "python.defaultInterpreterPath": "python",
+    "terminal.integrated.cwd": "${workspaceFolder}"
+}

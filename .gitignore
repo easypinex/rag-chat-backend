@@ -1,0 +1,6 @@
+*.pyc
+.DS_Store
+**/converted/**/**.md
+**/converted/**.md
+**/raw_docs/**/*.md
+**/json_converted/**/*.md
