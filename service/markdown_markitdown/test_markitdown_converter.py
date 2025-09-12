@@ -1,5 +1,5 @@
 """
-Test cases for the MarkitdownConverter.
+MarkitdownConverter 的測試案例。
 """
 
 import pytest
@@ -10,36 +10,36 @@ from service.markdown.markitdown_converter import MarkitdownConverter
 
 
 class TestMarkitdownConverter:
-    """Test cases for MarkitdownConverter."""
+    """MarkitdownConverter 的測試案例。"""
     
     def setup_method(self):
-        """Set up test environment."""
+        """設定測試環境。"""
         self.temp_dir = tempfile.mkdtemp()
         self.input_dir = Path(self.temp_dir) / "input"
         self.output_dir = Path(self.temp_dir) / "output"
         
-        # Create test directories
+        # 建立測試目錄
         self.input_dir.mkdir(parents=True)
         self.output_dir.mkdir(parents=True)
         
-        # Initialize converter
+        # 初始化轉換器
         self.converter = MarkitdownConverter(
             input_dir=str(self.input_dir),
             output_dir=str(self.output_dir)
         )
     
     def teardown_method(self):
-        """Clean up test environment."""
+        """清理測試環境。"""
         shutil.rmtree(self.temp_dir)
     
     def test_converter_initialization(self):
-        """Test converter initialization."""
+        """測試轉換器初始化。"""
         assert self.converter.input_dir == self.input_dir
         assert self.converter.output_dir == self.output_dir
         assert self.output_dir.exists()
     
     def test_output_directory_creation(self):
-        """Test that output directory is created if it doesn't exist."""
+        """測試如果輸出目錄不存在則會建立。"""
         new_output_dir = Path(self.temp_dir) / "new_output"
         converter = MarkitdownConverter(
             input_dir=str(self.input_dir),
@@ -48,24 +48,24 @@ class TestMarkitdownConverter:
         assert new_output_dir.exists()
     
     def test_get_conversion_stats(self):
-        """Test conversion statistics."""
+        """測試轉換統計資訊。"""
         stats = self.converter.get_conversion_stats()
         
         assert "input_pdfs_count" in stats
         assert "output_mds_count" in stats
         assert "input_directory" in stats
         assert "output_directory" in stats
-        assert stats["input_pdfs_count"] == 0  # No PDFs in empty directory
-        assert stats["output_mds_count"] == 0  # No markdown files yet
+        assert stats["input_pdfs_count"] == 0  # 空目錄中沒有 PDF
+        assert stats["output_mds_count"] == 0  # 還沒有 markdown 檔案
     
     def test_convert_nonexistent_file(self):
-        """Test conversion of non-existent file."""
+        """測試轉換不存在的檔案。"""
         with pytest.raises(FileNotFoundError):
             self.converter.convert_pdf_to_markdown("nonexistent.pdf")
     
     def test_convert_non_pdf_file(self):
-        """Test conversion of non-PDF file."""
-        # Create a text file
+        """測試轉換非 PDF 檔案。"""
+        # 建立文字檔案
         text_file = self.input_dir / "test.txt"
         text_file.write_text("This is a text file")
         
@@ -73,30 +73,30 @@ class TestMarkitdownConverter:
             self.converter.convert_pdf_to_markdown(str(text_file))
     
     def test_convert_empty_directory(self):
-        """Test conversion of empty directory."""
+        """測試轉換空目錄。"""
         results = self.converter.convert_directory()
         assert results == []
     
     def test_convert_nonexistent_subdirectory(self):
-        """Test conversion of non-existent subdirectory."""
+        """測試轉換不存在的子目錄。"""
         with pytest.raises(FileNotFoundError):
             self.converter.convert_directory("nonexistent_subdir")
 
 
 def test_integration_with_real_pdfs():
-    """Integration test with real PDF files (if available)."""
-    # This test would only run if there are actual PDF files in the raw_docs directory
+    """與真實 PDF 檔案的整合測試（如果可用的話）。"""
+    # 此測試只有在 raw_docs 目錄中有實際 PDF 檔案時才會執行
     raw_docs_path = Path("raw_docs/old_version")
     
     if not raw_docs_path.exists():
         pytest.skip("raw_docs/old_version directory not found")
     
-    # Find a PDF file to test with
+    # 尋找要測試的 PDF 檔案
     pdf_files = list(raw_docs_path.glob("*.pdf"))
     if not pdf_files:
         pytest.skip("No PDF files found in raw_docs/old_version")
     
-    # Use the first PDF file for testing
+    # 使用第一個 PDF 檔案進行測試
     test_pdf = pdf_files[0]
     
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -106,17 +106,17 @@ def test_integration_with_real_pdfs():
             output_dir=str(output_dir)
         )
         
-        # Convert the test PDF
+        # 轉換測試 PDF
         result = converter.convert_pdf_to_markdown(
             str(test_pdf),
             f"test_{test_pdf.stem}"
         )
         
-        # Verify the output file was created
+        # 驗證輸出檔案已建立
         assert Path(result).exists()
         assert Path(result).suffix == ".md"
         
-        # Verify the content is not empty
+        # 驗證內容不為空
         with open(result, 'r', encoding='utf-8') as f:
             content = f.read()
             assert len(content) > 0

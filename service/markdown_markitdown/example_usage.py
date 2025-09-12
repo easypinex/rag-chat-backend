@@ -1,5 +1,5 @@
 """
-Example usage of the MarkitdownConverter.
+MarkitdownConverter 的使用範例。
 """
 
 import sys
@@ -10,12 +10,12 @@ from service.markdown.markitdown_converter import MarkitdownConverter
 
 
 def example_single_file_conversion():
-    """Example: Convert a single PDF file."""
-    print("=== Single File Conversion Example ===")
+    """範例：轉換單一 PDF 檔案。"""
+    print("=== 單一檔案轉換範例 ===")
     
     converter = MarkitdownConverter()
     
-    # Convert a specific PDF file
+    # 轉換特定的 PDF 檔案
     pdf_path = "raw_docs/old_version/台灣人壽e樂活一年定期住院日額健康保險.pdf"
     
     try:
@@ -28,13 +28,13 @@ def example_single_file_conversion():
 
 
 def example_directory_conversion():
-    """Example: Convert all PDF files in old_version directory."""
-    print("\n=== Directory Conversion Example ===")
+    """範例：轉換 old_version 目錄中的所有 PDF 檔案。"""
+    print("\n=== 目錄轉換範例 ===")
     
     converter = MarkitdownConverter()
     
     try:
-        # Convert all PDFs in old_version directory
+        # 轉換 old_version 目錄中的所有 PDF
         results = converter.convert_old_version_docs()
         
         print(f"Converted {len(results)} files:")
@@ -46,8 +46,8 @@ def example_directory_conversion():
 
 
 def example_custom_directories():
-    """Example: Convert with custom input and output directories."""
-    print("\n=== Custom Directories Example ===")
+    """範例：使用自訂輸入和輸出目錄進行轉換。"""
+    print("\n=== 自訂目錄範例 ===")
     
     converter = MarkitdownConverter(
         input_dir="raw_docs/old_version",
@@ -55,7 +55,7 @@ def example_custom_directories():
     )
     
     try:
-        # Convert all PDFs in the input directory
+        # 轉換輸入目錄中的所有 PDF
         results = converter.convert_directory()
         
         print(f"Converted {len(results)} files:")
@@ -67,16 +67,16 @@ def example_custom_directories():
 
 
 def example_subdirectory_conversion():
-    """Example: Convert PDFs in a specific subdirectory."""
-    print("\n=== Subdirectory Conversion Example ===")
+    """範例：轉換特定子目錄中的 PDF。"""
+    print("\n=== 子目錄轉換範例 ===")
     
     converter = MarkitdownConverter()
     
     try:
-        # Convert PDFs in the dm subdirectory
+        # 轉換 dm 子目錄中的 PDF
         results = converter.convert_directory("old_version/dm")
         
-        print(f"Converted {len(results)} files from dm subdirectory:")
+        print(f"從 dm 子目錄轉換了 {len(results)} 個檔案：")
         for result in results:
             print(f"  - {result}")
             
@@ -85,14 +85,14 @@ def example_subdirectory_conversion():
 
 
 def example_conversion_stats():
-    """Example: Get conversion statistics."""
-    print("\n=== Conversion Statistics Example ===")
+    """範例：取得轉換統計資訊。"""
+    print("\n=== 轉換統計資訊範例 ===")
     
     converter = MarkitdownConverter()
     
     stats = converter.get_conversion_stats()
     
-    print("Conversion Statistics:")
+    print("轉換統計資訊：")
     print(f"  Input PDFs: {stats['input_pdfs_count']}")
     print(f"  Output MDs: {stats['output_mds_count']}")
     print(f"  Input Directory: {stats['input_directory']}")
@@ -100,11 +100,11 @@ def example_conversion_stats():
 
 
 def main():
-    """Run all examples."""
-    print("MarkitdownConverter Usage Examples")
+    """執行所有範例。"""
+    print("MarkitdownConverter 使用範例")
     print("=" * 50)
     
-    # Run examples
+    # 執行範例
     example_single_file_conversion()
     example_directory_conversion()
     example_custom_directories()
@@ -112,7 +112,7 @@ def main():
     example_conversion_stats()
     
     print("\n" + "=" * 50)
-    print("Examples completed!")
+    print("範例執行完成！")
 
 
 if __name__ == "__main__":
