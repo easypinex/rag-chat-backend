@@ -76,9 +76,22 @@ def example_single_pdf_conversion():
             print(f"    * 內容長度: {page['content_length']} 字元")
             print(f"    * 區塊數量: {page['block_count']}")
             print(f"    * 區塊類型: {page['block_types']}")
+            print(f"    * 表格數量: {page['table_count']}")
+            if page['table_count'] > 0:
+                for table in page['tables']:
+                    print(f"      - 表格 {table['table_id']}: {table['title']} ({table['row_count']}行×{table['column_count']}列)")
         
         if len(result['pages']) > 3:
             print(f"  - ... 還有 {len(result['pages']) - 3} 頁")
+        
+        # 顯示所有表格的統計
+        total_tables = sum(page['table_count'] for page in result['pages'])
+        if total_tables > 0:
+            print(f"\n📊 表格統計:")
+            print(f"  - 總表格數: {total_tables}")
+            for page in result['pages']:
+                if page['table_count'] > 0:
+                    print(f"  - 第 {page['page_number']} 頁: {page['table_count']} 個表格")
         
     except Exception as e:
         print(f"✗ 頁面分析失敗: {e}")
@@ -118,7 +131,7 @@ def example_batch_conversion():
     success_count = 0
     error_count = 0
     
-    for pdf_file in pdf_files[:3]:  # 只處理前3個檔案作為範例
+    for pdf_file in pdf_files:
         try:
             print(f"\n處理檔案: {pdf_file.name}")
             
@@ -191,6 +204,17 @@ def example_page_analysis():
         for block_type, count in sorted(all_block_types.items()):
             print(f"  {block_type}: {count} 個")
         
+        # 表格統計
+        total_tables = sum(page['table_count'] for page in result['pages'])
+        if total_tables > 0:
+            print(f"\n=== 表格統計 ===")
+            print(f"總表格數: {total_tables}")
+            for page in result['pages']:
+                if page['table_count'] > 0:
+                    print(f"  第 {page['page_number']} 頁: {page['table_count']} 個表格")
+                    for table in page['tables']:
+                        print(f"    - 表格 {table['table_id']}: {table['title']} ({table['row_count']}行×{table['column_count']}列)")
+        
         # 顯示每頁詳細資訊
         print(f"\n=== 每頁詳細資訊 ===")
         for page in result['pages']:
@@ -198,6 +222,7 @@ def example_page_analysis():
             print(f"  - 內容長度: {page['content_length']} 字元")
             print(f"  - 區塊數量: {page['block_count']}")
             print(f"  - 區塊類型: {page['block_types']}")
+            print(f"  - 表格數量: {page['table_count']}")
             if page['content_length'] > 0:
                 preview = page['content'][:100].replace('\n', ' ')
                 print(f"  - 內容預覽: {preview}...")
@@ -205,6 +230,77 @@ def example_page_analysis():
         
     except Exception as e:
         print(f"✗ 頁面分析失敗: {e}")
+
+
+def example_table_analysis():
+    """表格分析範例 - 專門展示表格提取和分析功能"""
+    print("\n=== 表格分析範例 ===")
+    
+    try:
+        converter = JsonMarkerConverter()
+        print("✓ JSON Marker 轉換器建立成功")
+    except ImportError as e:
+        print(f"✗ Marker 套件未安裝: {e}")
+        return
+    
+    # 指定測試 PDF 檔案
+    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs" / "old_version"
+    pdf_files = list(raw_docs_dir.glob("*.pdf"))
+    
+    if not pdf_files:
+        print("✗ 未找到測試 PDF 檔案")
+        return
+    
+    test_pdf = pdf_files[0]
+    print(f"分析檔案: {test_pdf.name}")
+    
+    try:
+        # 獲取頁面分析結果
+        result: PagesResult = converter.marker_json_pages(str(test_pdf))
+        
+        # 收集所有表格
+        all_tables = []
+        for page in result['pages']:
+            for table in page['tables']:
+                all_tables.append((page['page_number'], table))
+        
+        if not all_tables:
+            print("✗ 未找到任何表格")
+            return
+        
+        print(f"\n=== 表格分析結果 ===")
+        print(f"檔案名: {result['file_name']}")
+        print(f"總表格數: {len(all_tables)}")
+        
+        # 顯示每個表格的詳細信息
+        for page_num, table in all_tables:
+            print(f"\n📊 表格 {table['table_id']} (第 {page_num} 頁)")
+            print(f"  標題: {table['title']}")
+            print(f"  尺寸: {table['row_count']} 行 × {table['column_count']} 列")
+            print(f"  位置: 第 {table['start_line']} 行到第 {table['end_line']} 行")
+            print(f"  內容預覽:")
+            
+            # 顯示表格的前幾行
+            lines = table['content'].split('\n')
+            for i, line in enumerate(lines[:5]):
+                print(f"    {i+1}: {line}")
+            if len(lines) > 5:
+                print(f"    ... 還有 {len(lines) - 5} 行")
+        
+        # 表格統計
+        print(f"\n=== 表格統計 ===")
+        total_rows = sum(table['row_count'] for _, table in all_tables)
+        total_columns = sum(table['column_count'] for _, table in all_tables)
+        avg_rows = total_rows / len(all_tables) if all_tables else 0
+        avg_columns = total_columns / len(all_tables) if all_tables else 0
+        
+        print(f"總行數: {total_rows}")
+        print(f"總列數: {total_columns}")
+        print(f"平均行數: {avg_rows:.1f}")
+        print(f"平均列數: {avg_columns:.1f}")
+        
+    except Exception as e:
+        print(f"✗ 表格分析失敗: {e}")
 
 
 def example_error_handling():
@@ -269,6 +365,7 @@ def main():
     example_single_pdf_conversion()
     example_batch_conversion()
     example_page_analysis()
+    example_table_analysis()
     example_error_handling()
     
     print("\n" + "=" * 60)

@@ -8,6 +8,7 @@ Marker JSON-based Markdown Converter
 import os
 import re
 import logging
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, TypedDict, TYPE_CHECKING
 
@@ -36,6 +37,17 @@ logger = logging.getLogger(__name__)
 
 
 
+class TableInfo(TypedDict):
+    """表格資訊"""
+    table_id: str              # 表格 UUID
+    title: str                 # 表格標題
+    content: str               # 表格 Markdown 內容
+    row_count: int             # 行數
+    column_count: int          # 列數
+    start_line: int            # 在頁面中的起始行號
+    end_line: int              # 在頁面中的結束行號
+
+
 class PageContent(TypedDict):
     """頁面內容和資訊"""
     page_number: int           # 頁碼
@@ -43,6 +55,8 @@ class PageContent(TypedDict):
     content_length: int        # 內容長度
     block_count: int           # 區塊數量
     block_types: Dict[str, int]  # 區塊類型分布，如 {'paragraph': 5, 'title': 2}
+    tables: List[TableInfo]    # 頁面中的表格列表
+    table_count: int           # 表格數量
 
 
 class PagesResult(TypedDict):
@@ -258,16 +272,19 @@ class JsonMarkerConverter:
             
             # 構建頁面資訊
             pages_with_info = []
+            
             for i, content in enumerate(page_contents, 1):
                 # 分析頁面內容
-                block_count, block_types = self._analyze_page_content(content)
+                block_count, block_types, tables = self._analyze_page_content(content)
                 
                 page_info: PageContent = {
                     'page_number': i,
                     'content': content,
                     'content_length': len(content),
                     'block_count': block_count,
-                    'block_types': block_types
+                    'block_types': block_types,
+                    'tables': tables,
+                    'table_count': len(tables)
                 }
                 pages_with_info.append(page_info)
             
@@ -414,15 +431,122 @@ class JsonMarkerConverter:
         
         return pages if pages else [content]
     
-    def _analyze_page_content(self, content: str) -> tuple[int, Dict[str, int]]:
+    def _extract_tables_from_content(self, content: str) -> List[TableInfo]:
         """
-        分析頁面內容，統計區塊類型和數量
+        從頁面內容中提取表格信息
         
         Args:
             content (str): 頁面 Markdown 內容
             
         Returns:
-            tuple[int, Dict[str, int]]: (區塊總數, 區塊類型分布)
+            List[TableInfo]: 表格信息列表
+        """
+        tables = []
+        lines = content.split('\n')
+        
+        # 查找表格行
+        table_lines = []
+        current_table_start = -1
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # 檢查是否為表格行
+            if '|' in line and line.count('|') >= 2:
+                if current_table_start == -1:
+                    current_table_start = i
+                table_lines.append((i, line))
+            else:
+                # 如果不是表格行，檢查是否有完整的表格
+                if table_lines and current_table_start != -1:
+                    # 提取表格
+                    table_info = self._parse_table_lines(table_lines, current_table_start)
+                    if table_info:
+                        tables.append(table_info)
+                    table_lines = []
+                    current_table_start = -1
+        
+        # 處理最後一個表格
+        if table_lines and current_table_start != -1:
+            table_info = self._parse_table_lines(table_lines, current_table_start)
+            if table_info:
+                tables.append(table_info)
+        
+        return tables
+    
+    def _parse_table_lines(self, table_lines: List[tuple], start_line: int) -> Optional[TableInfo]:
+        """
+        解析表格行，提取表格信息
+        
+        Args:
+            table_lines (List[tuple]): 表格行列表，每個元素為 (行號, 內容)
+            start_line (int): 表格起始行號
+            
+        Returns:
+            Optional[TableInfo]: 表格信息，如果解析失敗則返回 None
+        """
+        if len(table_lines) < 2:  # 至少需要標題行和分隔行
+            return None
+        
+        # 提取表格內容
+        table_content_lines = [line for _, line in table_lines]
+        table_content = '\n'.join(table_content_lines)
+        
+        # 計算行數和列數
+        row_count = len(table_lines)
+        
+        # 跳過分隔行來計算列數
+        data_lines = [line for _, line in table_lines if not line.startswith('|---')]
+        if not data_lines:
+            return None
+            
+        first_line = data_lines[0]
+        column_count = first_line.count('|') - 1  # 減去首尾的 |
+        
+        # 嘗試提取表格標題（從表格前的內容中尋找）
+        title = self._extract_table_title(table_content_lines[0])
+        
+        # 生成表格 UUID
+        table_id = str(uuid.uuid4())
+        
+        return TableInfo(
+            table_id=table_id,
+            title=title,
+            content=table_content,
+            row_count=row_count,
+            column_count=column_count,
+            start_line=start_line,
+            end_line=table_lines[-1][0]
+        )
+    
+    def _extract_table_title(self, first_line: str) -> str:
+        """
+        從表格第一行提取標題
+        
+        Args:
+            first_line (str): 表格第一行內容
+            
+        Returns:
+            str: 表格標題
+        """
+        # 移除 Markdown 表格格式
+        cells = [cell.strip() for cell in first_line.split('|') if cell.strip()]
+        if cells:
+            # 使用第一個非空單元格作為標題
+            return cells[0]
+        return "未命名表格"
+    
+    def _analyze_page_content(self, content: str) -> tuple[int, Dict[str, int], List[TableInfo]]:
+        """
+        分析頁面內容，統計區塊類型和數量，並提取表格信息
+        
+        Args:
+            content (str): 頁面 Markdown 內容
+            
+        Returns:
+            tuple[int, Dict[str, int], List[TableInfo]]: (區塊總數, 區塊類型分布, 表格列表)
         """
         block_types = {}
         block_count = 0
@@ -454,7 +578,10 @@ class JsonMarkerConverter:
             
             block_types[block_type] = block_types.get(block_type, 0) + 1
         
-        return block_count, block_types
+        # 提取表格信息
+        tables = self._extract_tables_from_content(content)
+        
+        return block_count, block_types, tables
     
     def marker_json_to_markdown(self, input_pdf: str) -> str:
         """

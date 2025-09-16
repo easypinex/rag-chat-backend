@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from typing import List, Optional
-from markitdown import MarkItDown
+from markitdown import DocumentConverterResult, MarkItDown
 
 # 設定日誌記錄
 logging.basicConfig(level=logging.INFO)
@@ -64,7 +64,7 @@ class MarkitdownConverter:
             logger.info(f"Converting PDF: {pdf_path.name}")
             
             # 將 PDF 轉換為 markdown
-            result = self.converter.convert(str(pdf_path))
+            result: DocumentConverterResult = self.converter.convert(str(pdf_path))
             
             # 儲存 markdown 內容
             with open(output_path, 'w', encoding='utf-8') as f:
