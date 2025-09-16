@@ -4,9 +4,9 @@ MarkitdownConverter 的使用範例。
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append('..')
 
-from service.markdown.markitdown_converter import MarkitdownConverter
+from markitdown_converter import MarkitdownConverter
 
 
 def example_single_file_conversion():
@@ -16,7 +16,8 @@ def example_single_file_conversion():
     converter = MarkitdownConverter()
     
     # 轉換特定的 PDF 檔案
-    pdf_path = "raw_docs/old_version/台灣人壽e樂活一年定期住院日額健康保險.pdf"
+    # pdf_path = "raw_docs/old_version/台灣人壽e樂活一年定期住院日額健康保險.pdf"
+    pdf_path = "raw_docs/個人保險保單服務暨契約變更手冊(114年9月版)_Unlock.pdf"
     
     try:
         result = converter.convert_pdf_to_markdown(pdf_path)
@@ -50,7 +51,7 @@ def example_custom_directories():
     print("\n=== 自訂目錄範例 ===")
     
     converter = MarkitdownConverter(
-        input_dir="raw_docs/old_version",
+        input_dir="raw_docs",
         output_dir="markdown/converted"
     )
     
@@ -64,24 +65,6 @@ def example_custom_directories():
             
     except Exception as e:
         print(f"Error converting directory: {e}")
-
-
-def example_subdirectory_conversion():
-    """範例：轉換特定子目錄中的 PDF。"""
-    print("\n=== 子目錄轉換範例 ===")
-    
-    converter = MarkitdownConverter()
-    
-    try:
-        # 轉換 dm 子目錄中的 PDF
-        results = converter.convert_directory("old_version/dm")
-        
-        print(f"從 dm 子目錄轉換了 {len(results)} 個檔案：")
-        for result in results:
-            print(f"  - {result}")
-            
-    except Exception as e:
-        print(f"Error converting subdirectory: {e}")
 
 
 def example_conversion_stats():
@@ -108,7 +91,6 @@ def main():
     example_single_file_conversion()
     example_directory_conversion()
     example_custom_directories()
-    example_subdirectory_conversion()
     example_conversion_stats()
     
     print("\n" + "=" * 50)

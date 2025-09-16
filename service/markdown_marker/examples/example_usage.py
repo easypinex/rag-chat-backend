@@ -33,7 +33,7 @@ def example_single_pdf_conversion():
         return
     
     # 指定測試 PDF 檔案
-    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs" / "old_version"
+    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs"
     pdf_files = list(raw_docs_dir.glob("*.pdf"))
     
     if not pdf_files:
@@ -109,7 +109,7 @@ def example_batch_conversion():
         return
     
     # 指定測試目錄
-    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs" / "old_version"
+    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs"
     
     if not raw_docs_dir.exists():
         print("✗ 測試目錄不存在")
@@ -168,7 +168,7 @@ def example_page_analysis():
         return
     
     # 指定測試 PDF 檔案
-    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs" / "old_version"
+    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs"
     pdf_files = list(raw_docs_dir.glob("*.pdf"))
     
     if not pdf_files:
@@ -244,7 +244,7 @@ def example_table_analysis():
         return
     
     # 指定測試 PDF 檔案
-    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs" / "old_version"
+    raw_docs_dir = Path(__file__).parent.parent.parent.parent / "raw_docs"
     pdf_files = list(raw_docs_dir.glob("*.pdf"))
     
     if not pdf_files:

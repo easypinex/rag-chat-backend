@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class MarkitdownConverter:
     """使用微軟 markitdown 的 PDF 到 Markdown 轉換器類別。"""
     
-    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "markdown/converted"):
+    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "service/markdown_markitdown/converted"):
         """
         初始化轉換器。
         
@@ -137,7 +137,7 @@ class MarkitdownConverter:
         Returns:
             轉換後的 markdown 檔案路徑清單
         """
-        return self.convert_directory("old_version")
+        return self.convert_directory()
     
     def get_conversion_stats(self) -> dict:
         """
