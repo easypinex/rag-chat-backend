@@ -78,14 +78,17 @@ class JsonMarkerConverter:
     def _initialize_converter(self):
         """初始化 Marker 轉換器"""
         try:
-            # 使用 JSON 輸出格式
-            cfg = ConfigParser({"output_format": "json"})
+            # 使用 Markdown 輸出格式並啟用分頁
+            cfg = ConfigParser({
+                "output_format": "markdown",
+                "paginate_output": True
+            })
             artifact_dict = create_model_dict()
             self.converter = PdfConverter(
                 config=cfg.generate_config_dict(),
                 artifact_dict=artifact_dict
             )
-            logger.info("Marker JSON converter initialized successfully")
+            logger.info("Marker JSON converter initialized successfully with pagination enabled")
         except Exception as e:
             logger.error(f"Failed to initialize Marker converter: {e}")
             raise
@@ -248,7 +251,7 @@ class JsonMarkerConverter:
             if hasattr(rendered, 'markdown'):
                 # 將 Markdown 內容按頁分割
                 markdown_content: str = rendered.markdown
-                page_contents = self._split_markdown_by_pages(markdown_content)
+                page_contents = self._split_markdown_by_pages(markdown_content, rendered)
             else:
                 # 如果沒有 markdown 屬性，將整個對象轉為字符串
                 page_contents = [str(rendered)]
@@ -282,37 +285,46 @@ class JsonMarkerConverter:
             logger.error(f"Failed to extract pages from PDF: {e}")
             raise
     
-    def _split_markdown_by_pages(self, markdown_content: str) -> List[str]:
+    def _split_markdown_by_pages(self, markdown_content: str, rendered: 'MarkdownOutput' = None) -> List[str]:
         """
-        將 Markdown 內容智能分割為多頁
+        將 Markdown 內容按照原始 PDF 的物理頁面分割
         
         Args:
             markdown_content (str): 完整的 Markdown 內容
+            rendered (MarkdownOutput): Marker 轉換器返回的對象，包含頁面信息
             
         Returns:
             List[str]: 分割後的頁面列表，每個字符串是一頁的 Markdown 內容
             
         Algorithm:
-            1. 優先按標題分割（## 或 ### 開頭）
-            2. 每個章節作為一頁
-            3. 確保每頁內容完整且有意義
+            1. 如果有 rendered 對象，使用其 metadata 中的 page_id 信息
+            2. 按照原始 PDF 的物理頁面分割
+            3. 如果沒有頁面信息，則按標題分割作為備用方案
         
         Example:
             >>> content = "# Title\\n\\n## Section 1\\n\\nContent...\\n\\n## Section 2\\n\\nMore content..."
-            >>> pages = converter._split_markdown_by_pages(content)
+            >>> pages = converter._split_markdown_by_pages(content, rendered)
             >>> print(f"分割為 {len(pages)} 頁")
             >>> for i, page in enumerate(pages, 1):
             ...     print(f"第 {i} 頁: {len(page)} 字元")
         """
-        # 智能分頁策略：
-        # 1. 按標題分割（## 或 ### 開頭）
-        # 2. 按段落分割
-        # 3. 控制每頁的內容量
+        # 如果有 rendered 對象且包含頁面信息，使用物理頁面分割
+        if rendered and hasattr(rendered, 'metadata') and rendered.metadata:
+            metadata = rendered.metadata
+            if 'page_stats' in metadata:
+                page_stats = metadata['page_stats']
+                total_pages = len(page_stats)
+                logger.info(f"使用物理頁面分割，共 {total_pages} 頁")
+                
+                # 按物理頁面分割內容
+                pages = self._split_by_physical_pages(markdown_content, page_stats)
+                if pages:
+                    return pages
         
-        # 首先按標題分割
+        # 備用方案：按標題分割（保持原有邏輯）
+        logger.warning("使用備用方案：按標題分割")
         sections = re.split(r'\n(?=#{2,3}\s)', markdown_content)
         
-        # 將每個章節作為一頁
         pages = []
         for section in sections:
             if section.strip():
@@ -323,6 +335,55 @@ class JsonMarkerConverter:
             pages = [markdown_content]
         
         return pages
+    
+    def _split_by_physical_pages(self, markdown_content: str, page_stats: List[Dict]) -> List[str]:
+        """
+        按照 Marker 的頁面分隔符分割 Markdown 內容
+        
+        Args:
+            markdown_content (str): 完整的 Markdown 內容
+            page_stats (List[Dict]): 頁面統計信息
+            
+        Returns:
+            List[str]: 按物理頁面分割的內容列表
+        """
+        total_pages = len(page_stats)
+        logger.info(f"使用 Marker 頁面分隔符分割 {total_pages} 個物理頁面")
+        
+        # Marker 的頁面分隔符格式：\n\n{page_id}------------------------------------------------\n\n
+        # 其中 page_id 是頁面編號，後面跟著 48 個連字符
+        page_separator_pattern = r'\n\n\{(\d+)\}' + r'-' * 48 + r'\n\n'
+        
+        # 使用正則表達式分割內容
+        page_parts = re.split(page_separator_pattern, markdown_content)
+        
+        logger.info(f"找到 {len(page_parts)} 個部分")
+        
+        if len(page_parts) <= 1:
+            logger.error("未找到 Marker 頁面分隔符，這不應該發生！")
+            raise ValueError("Marker 頁面分隔符未找到，請檢查 paginate_output 是否正確啟用")
+        
+        # 第一個部分是第一頁的內容
+        pages = []
+        if page_parts[0].strip():
+            pages.append(page_parts[0].strip())
+        
+        # 其餘部分每兩個元素一組：頁面編號和內容
+        for i in range(1, len(page_parts), 2):
+            if i + 1 < len(page_parts):
+                page_id = page_parts[i]
+                page_content = page_parts[i + 1].strip()
+                if page_content:
+                    pages.append(page_content)
+        
+        logger.info(f"成功分割為 {len(pages)} 頁")
+        
+        # 驗證頁數是否正確
+        if len(pages) != total_pages:
+            logger.warning(f"分割頁數 ({len(pages)}) 與預期頁數 ({total_pages}) 不符")
+        
+        return pages
+    
     
     def _split_by_paragraphs(self, content: str) -> List[str]:
         """
