@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加父目錄到 Python 路徑
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from json_marker_converter import JsonMarkerConverter
+from marker_converter import MarkerConverter
 
 # 設置日誌
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +24,7 @@ def test_single_pdf_conversion():
     print("=== 測試單一 PDF 檔案轉換 ===")
     
     try:
-        converter = JsonMarkerConverter()
+        converter = MarkerConverter()
         print("✓ JSON Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ 依賴套件未安裝: {e}")
@@ -87,7 +87,7 @@ def test_batch_conversion():
     print("\n=== 測試批量轉換 ===")
     
     try:
-        converter = JsonMarkerConverter()
+        converter = MarkerConverter()
         print("✓ JSON Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ 依賴套件未安裝: {e}")
@@ -135,7 +135,7 @@ def test_page_structure_analysis():
     print("\n=== 測試頁面結構分析 ===")
     
     try:
-        converter = JsonMarkerConverter()
+        converter = MarkerConverter()
         print("✓ JSON Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ 依賴套件未安裝: {e}")
@@ -154,7 +154,7 @@ def test_page_structure_analysis():
     
     try:
         # 獲取頁面結構
-        pages = converter.marker_json_pages(str(test_pdf))
+        pages = converter.marker_pages(str(test_pdf))
         
         print(f"總頁數: {len(pages)}")
         
@@ -186,7 +186,7 @@ def test_table_conversion():
     print("\n=== 測試表格轉換功能 ===")
     
     try:
-        converter = JsonMarkerConverter()
+        converter = MarkerConverter()
         print("✓ JSON Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ 依賴套件未安裝: {e}")
@@ -246,7 +246,7 @@ def test_error_handling():
     print("\n=== 測試錯誤處理 ===")
     
     try:
-        converter = JsonMarkerConverter()
+        converter = MarkerConverter()
         print("✓ JSON Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ 依賴套件未安裝: {e}")

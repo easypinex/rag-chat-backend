@@ -1,272 +1,376 @@
 """
-Marker Converter 測試檔案
+JSON Marker Converter 測試
 
-測試基於 Marker 套件的 PDF 到 Markdown 轉換功能
+測試 JSON Marker 轉換器的各種功能
 """
 
 import os
-import sys
 import pytest
 import tempfile
-import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
 # 添加父目錄到 Python 路徑
+import sys
+from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from marker_converter import MarkerConverter, create_marker_converter
+# 測試導入
+try:
+    from marker_converter import MarkerConverter, create_marker_converter
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+    from marker.config.parser import ConfigParser
+    from bs4 import BeautifulSoup
+    IMPORTS_AVAILABLE = True
+except ImportError:
+    IMPORTS_AVAILABLE = False
 
 
+@pytest.mark.skipif(not IMPORTS_AVAILABLE, reason="Required packages not available")
 class TestMarkerConverter:
-    """Marker 轉換器測試類"""
+    """JSON Marker 轉換器測試類"""
     
     def setup_method(self):
-        """測試前的設置"""
-        self.test_dir = Path(__file__).parent
-        self.raw_docs_dir = self.test_dir.parent.parent / "raw_docs" / "old_version"
-        self.temp_dir = tempfile.mkdtemp()
-        
+        """每個測試方法前的設置"""
+        self.converter = None
+        self.temp_dir = None
+    
     def teardown_method(self):
-        """測試後的清理"""
-        if os.path.exists(self.temp_dir):
+        """每個測試方法後的清理"""
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            import shutil
             shutil.rmtree(self.temp_dir)
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    def test_marker_converter_init(self, mock_pdf_converter, mock_create_model_dict):
-        """測試 Marker 轉換器初始化"""
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        converter = MarkerConverter()
-        
-        assert converter.converter == mock_converter_instance
-        mock_create_model_dict.assert_called_once()
-        mock_pdf_converter.assert_called_once_with(artifact_dict=mock_artifact_dict)
+    def test_converter_initialization(self):
+        """測試轉換器初始化"""
+        with patch('marker_converter.ConfigParser') as mock_config, \
+             patch('marker_converter.create_model_dict') as mock_models, \
+             patch('marker_converter.PdfConverter') as mock_converter:
+            
+            mock_config.return_value.generate_config_dict.return_value = {"output_format": "json"}
+            mock_models.return_value = {}
+            mock_converter.return_value = Mock()
+            
+            converter = MarkerConverter()
+            assert converter is not None
+            assert converter.converter is not None
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', False)
-    def test_marker_converter_init_without_marker(self):
-        """測試在沒有 Marker 套件時的初始化"""
-        with pytest.raises(ImportError, match="Marker package is not available"):
-            MarkerConverter()
+    def test_md_escape(self):
+        """測試 Markdown 轉義功能"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 測試管道符號轉義
+            assert converter._md_escape("test|text") == "test\\|text"
+            assert converter._md_escape("normal text") == "normal text"
+            assert converter._md_escape("") == ""
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    def test_marker_converter_init_with_custom_locations(self, mock_pdf_converter, mock_create_model_dict):
-        """測試使用自定義模型位置的初始化"""
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        model_locations = {"model1": "/path/to/model1", "model2": "/path/to/model2"}
-        converter = MarkerConverter(model_locations)
-        
-        # 注意：新的 API 可能不直接使用 model_locations 參數
-        assert converter.model_locations == model_locations
-        mock_create_model_dict.assert_called_once()
+    def test_table_html_to_md_simple(self):
+        """測試簡單表格轉換"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 簡單表格
+            html = """
+            <table>
+                <tr><th>Name</th><th>Age</th></tr>
+                <tr><td>John</td><td>25</td></tr>
+                <tr><td>Jane</td><td>30</td></tr>
+            </table>
+            """
+            
+            result = converter._table_html_to_md(html)
+            assert "| Name | Age |" in result
+            assert "| John | 25 |" in result
+            assert "| Jane | 30 |" in result
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    @patch('service.markdown2.marker_converter.text_from_rendered')
-    def test_convert_pdf_to_markdown(self, mock_text_from_rendered, mock_pdf_converter, mock_create_model_dict):
-        """測試 PDF 到 Markdown 的轉換"""
-        # 設置 mock
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        mock_rendered = Mock()
-        mock_converter_instance.return_value = mock_rendered
-        mock_text_from_rendered.return_value = ("# Test Markdown\n\nThis is test content.", None, [])
-        
-        # 建立測試 PDF 檔案
-        test_pdf = Path(self.temp_dir) / "test.pdf"
-        test_pdf.write_text("fake pdf content")
-        
-        converter = MarkerConverter()
-        result = converter.convert_pdf_to_markdown(str(test_pdf))
-        
-        assert result == "# Test Markdown\n\nThis is test content."
-        mock_converter_instance.assert_called_once_with(str(test_pdf))
-        mock_text_from_rendered.assert_called_once_with(mock_rendered)
-        
-        # 檢查輸出檔案是否建立
-        output_file = test_pdf.with_suffix('.md')
-        assert output_file.exists()
-        assert output_file.read_text(encoding='utf-8') == result
+    def test_table_html_to_md_complex(self):
+        """測試複雜表格轉換（保留 HTML）"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 有 rowspan 的複雜表格
+            html = """
+            <table>
+                <tr><th rowspan="2">Item</th><th>Q1</th><th>Q2</th></tr>
+                <tr><td>100</td><td>200</td></tr>
+            </table>
+            """
+            
+            result = converter._table_html_to_md(html)
+            assert "complex table; keep HTML" in result
+            assert "<table>" in result
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    def test_convert_pdf_to_markdown_file_not_found(self, mock_pdf_converter, mock_create_model_dict):
-        """測試轉換不存在的 PDF 檔案"""
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        converter = MarkerConverter()
-        
-        with pytest.raises(FileNotFoundError):
-            converter.convert_pdf_to_markdown("nonexistent.pdf")
+    def test_table_html_to_md_empty(self):
+        """測試空表格處理"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 空表格
+            result = converter._table_html_to_md("")
+            assert result == ""
+            
+            # 無表格標籤
+            result = converter._table_html_to_md("<div>No table here</div>")
+            assert result == ""
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    @patch('service.markdown2.marker_converter.text_from_rendered')
-    def test_convert_pdf_with_images(self, mock_text_from_rendered, mock_pdf_converter, mock_create_model_dict):
-        """測試包含圖片的 PDF 轉換"""
-        # 設置 mock
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        # 建立測試圖片檔案
-        test_image = Path(self.temp_dir) / "test_image.png"
-        test_image.write_text("fake image content")
-        
-        mock_rendered = Mock()
-        mock_converter_instance.return_value = mock_rendered
-        mock_text_from_rendered.return_value = (
-            "# Test with Image\n\n![Image](test_image.png)", 
-            None, 
-            [str(test_image)]
-        )
-        
-        # 建立測試 PDF 檔案
-        test_pdf = Path(self.temp_dir) / "test_with_images.pdf"
-        test_pdf.write_text("fake pdf content")
-        
-        converter = MarkerConverter()
-        result = converter.convert_pdf_to_markdown(str(test_pdf))
-        
-        assert result == "# Test with Image\n\n![Image](test_image.png)"
-        
-        # 檢查圖片目錄是否建立
-        output_file = test_pdf.with_suffix('.md')
-        images_dir = output_file.parent / f"{output_file.stem}_images"
-        assert images_dir.exists()
+    def test_block_to_md_title(self):
+        """測試標題區塊轉換"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 模擬標題區塊
+            block = Mock()
+            block.block_type = "title"
+            block.text = "Test Title"
+            
+            result = converter._block_to_md(block)
+            assert "## Test Title" in result
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    @patch('service.markdown2.marker_converter.text_from_rendered')
-    def test_convert_multiple_pdfs(self, mock_text_from_rendered, mock_pdf_converter, mock_create_model_dict):
-        """測試批量轉換多個 PDF 檔案"""
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        # 建立測試 PDF 檔案
-        test_pdf1 = Path(self.temp_dir) / "test1.pdf"
-        test_pdf2 = Path(self.temp_dir) / "test2.pdf"
-        test_pdf1.write_text("fake pdf content 1")
-        test_pdf2.write_text("fake pdf content 2")
-        
-        mock_rendered1 = Mock()
-        mock_rendered2 = Mock()
-        mock_converter_instance.side_effect = [mock_rendered1, mock_rendered2]
-        mock_text_from_rendered.side_effect = [
-            ("# Test 1\n\nContent 1.", None, []),
-            ("# Test 2\n\nContent 2.", None, [])
-        ]
-        
-        converter = MarkerConverter()
-        results = converter.convert_multiple_pdfs(self.temp_dir)
-        
-        assert len(results) == 2
-        assert "test1.pdf" in results
-        assert "test2.pdf" in results
-        assert results["test1.pdf"] == "# Test 1\n\nContent 1."
-        assert results["test2.pdf"] == "# Test 2\n\nContent 2."
+    def test_block_to_md_paragraph(self):
+        """測試段落區塊轉換"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 模擬段落區塊
+            block = Mock()
+            block.block_type = "paragraph"
+            block.text = "This is a test paragraph."
+            
+            result = converter._block_to_md(block)
+            assert "This is a test paragraph." in result
     
-    @patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True)
-    @patch('service.markdown2.marker_converter.create_model_dict')
-    @patch('service.markdown2.marker_converter.PdfConverter')
-    def test_get_conversion_info(self, mock_pdf_converter, mock_create_model_dict):
-        """測試獲取轉換資訊"""
-        mock_artifact_dict = Mock()
-        mock_create_model_dict.return_value = mock_artifact_dict
-        mock_converter_instance = Mock()
-        mock_pdf_converter.return_value = mock_converter_instance
-        
-        # 建立測試 PDF 檔案
-        test_pdf = Path(self.temp_dir) / "test_info.pdf"
-        test_pdf.write_text("fake pdf content for info test")
-        
-        converter = MarkerConverter()
-        info = converter.get_conversion_info(str(test_pdf))
-        
-        assert info["file_name"] == "test_info.pdf"
-        assert info["extension"] == ".pdf"
-        assert info["marker_available"] is True
-        assert "file_size" in info
-        assert "file_size_mb" in info
-        assert "modified_time" in info
+    def test_block_to_md_equation(self):
+        """測試方程式區塊轉換"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 模擬方程式區塊
+            block = Mock()
+            block.block_type = "equation"
+            block.text = "x^2 + y^2 = z^2"
+            
+            result = converter._block_to_md(block)
+            assert "$x^2 + y^2 = z^2$" in result
     
-    def test_create_marker_converter_function(self):
-        """測試建立 Marker 轉換器的便利函數"""
-        with patch('service.markdown2.marker_converter.MARKER_AVAILABLE', True):
-            with patch('service.markdown2.marker_converter.create_model_dict') as mock_create_model_dict:
-                with patch('service.markdown2.marker_converter.PdfConverter') as mock_pdf_converter:
-                    mock_artifact_dict = Mock()
-                    mock_create_model_dict.return_value = mock_artifact_dict
-                    mock_converter_instance = Mock()
-                    mock_pdf_converter.return_value = mock_converter_instance
-                    
-                    converter = create_marker_converter()
-                    assert isinstance(converter, MarkerConverter)
-                    
-                    # 測試使用自定義模型位置
-                    model_locations = {"test": "/path/to/test"}
-                    converter2 = create_marker_converter(model_locations)
-                    assert converter2.model_locations == model_locations
+    def test_block_to_md_figure(self):
+        """測試圖片區塊轉換"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            # 模擬圖片區塊
+            block = Mock()
+            block.block_type = "figure"
+            block.caption = "Test Figure"
+            
+            result = converter._block_to_md(block)
+            assert "![figure]" in result
+            assert "Test Figure" in result
+    
+    def test_marker_pages(self):
+        """測試頁面提取功能"""
+        with patch('advanced_marker_converter.ConfigParser'), \
+             patch('advanced_marker_converter.create_model_dict'), \
+             patch('advanced_marker_converter.PdfConverter') as mock_converter_class:
+            
+            # 模擬轉換器
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            # 模擬頁面數據
+            mock_page1 = Mock()
+            mock_page1.children = [Mock(), Mock()]
+            mock_page2 = Mock()
+            mock_page2.children = [Mock()]
+            
+            mock_rendered = Mock()
+            mock_rendered.children = [mock_page1, mock_page2]
+            mock_converter.return_value = mock_rendered
+            
+            converter = MarkerConverter()
+            pages = converter.marker_pages("test.pdf")
+            
+            assert len(pages) == 2
+            assert len(pages[0].children) == 2
+            assert len(pages[1].children) == 1
+    
+    def test_marker_to_markdown(self):
+        """測試 JSON 到 Markdown 轉換"""
+        with patch('advanced_marker_converter.ConfigParser'), \
+             patch('advanced_marker_converter.create_model_dict'), \
+             patch('advanced_marker_converter.PdfConverter') as mock_converter_class:
+            
+            # 模擬轉換器
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            # 模擬頁面數據
+            mock_page = Mock()
+            mock_page.children = []
+            
+            mock_rendered = Mock()
+            mock_rendered.children = [mock_page]
+            mock_converter.return_value = mock_rendered
+            
+            converter = MarkerConverter()
+            result = converter.marker_to_markdown("test.pdf")
+            
+            assert "## Page 1" in result
+            assert "---" in result
+    
+    def test_convert_pdf_to_markdown_file_not_found(self):
+        """測試檔案不存在錯誤處理"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            with pytest.raises(FileNotFoundError):
+                converter.convert_pdf_to_markdown("nonexistent.pdf")
+    
+    def test_convert_multiple_pdfs_directory_not_found(self):
+        """測試目錄不存在錯誤處理"""
+        with patch('marker_converter.ConfigParser'), \
+             patch('marker_converter.create_model_dict'), \
+             patch('marker_converter.PdfConverter'):
+            
+            converter = MarkerConverter()
+            
+            with pytest.raises(FileNotFoundError):
+                converter.convert_multiple_pdfs("nonexistent_directory")
+    
+    def test_get_page_info(self):
+        """測試頁面資訊獲取"""
+        with patch('advanced_marker_converter.ConfigParser'), \
+             patch('advanced_marker_converter.create_model_dict'), \
+             patch('advanced_marker_converter.PdfConverter') as mock_converter_class:
+            
+            # 模擬轉換器
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            # 模擬頁面數據
+            mock_page = Mock()
+            mock_block1 = Mock()
+            mock_block1.block_type = "paragraph"
+            mock_block2 = Mock()
+            mock_block2.block_type = "title"
+            mock_page.children = [mock_block1, mock_block2]
+            
+            mock_rendered = Mock()
+            mock_rendered.children = [mock_page]
+            mock_converter.return_value = mock_rendered
+            
+            # 創建臨時 PDF 檔案
+            self.temp_dir = tempfile.mkdtemp()
+            test_pdf = os.path.join(self.temp_dir, "test.pdf")
+            with open(test_pdf, "w") as f:
+                f.write("dummy pdf content")
+            
+            converter = MarkerConverter()
+            page_info = converter.get_page_info(test_pdf)
+            
+            assert page_info["file_name"] == "test.pdf"
+            assert page_info["total_pages"] == 1
+            assert len(page_info["pages"]) == 1
+            assert page_info["pages"][0]["page_number"] == 1
+            assert page_info["pages"][0]["block_count"] == 2
+    
+    def test_create_advanced_marker_converter(self):
+        """測試便利函數"""
+        with patch('marker_converter.MarkerConverter') as mock_converter_class:
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            result = create_marker_converter()
+            assert result == mock_converter
+            mock_converter_class.assert_called_once_with(None)
+    
+    def test_create_advanced_marker_converter_with_locations(self):
+        """測試帶模型位置的便利函數"""
+        with patch('marker_converter.MarkerConverter') as mock_converter_class:
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            model_locations = {"layout_model": "/path/to/model"}
+            result = create_marker_converter(model_locations)
+            assert result == mock_converter
+            mock_converter_class.assert_called_once_with(model_locations)
 
 
+@pytest.mark.skipif(not IMPORTS_AVAILABLE, reason="Required packages not available")
 class TestMarkerConverterIntegration:
-    """Marker 轉換器整合測試"""
+    """JSON Marker 轉換器整合測試"""
     
     def setup_method(self):
-        """測試前的設置"""
-        self.test_dir = Path(__file__).parent
-        self.raw_docs_dir = self.test_dir.parent.parent / "raw_docs" / "old_version"
+        """每個測試方法前的設置"""
+        self.temp_dir = None
     
-    @pytest.mark.skipif(not os.path.exists("/Users/pin/Desktop/workspace/rag-chat-backend/raw_docs/old_version"), 
-                        reason="Raw docs directory not found")
-    def test_with_real_pdf_files(self):
-        """使用真實 PDF 檔案進行測試（需要 Marker 套件已安裝）"""
-        if not os.path.exists(self.raw_docs_dir):
-            pytest.skip("Raw docs directory not found")
-        
-        pdf_files = list(self.raw_docs_dir.glob("*.pdf"))
-        if not pdf_files:
-            pytest.skip("No PDF files found in raw_docs")
-        
-        # 只測試第一個 PDF 檔案
-        test_pdf = pdf_files[0]
-        
-        try:
+    def teardown_method(self):
+        """每個測試方法後的清理"""
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            import shutil
+            shutil.rmtree(self.temp_dir)
+    
+    def test_full_conversion_workflow(self):
+        """測試完整轉換工作流程"""
+        # 這個測試需要實際的 Marker 環境，所以用 mock
+        with patch('advanced_marker_converter.ConfigParser'), \
+             patch('advanced_marker_converter.create_model_dict'), \
+             patch('advanced_marker_converter.PdfConverter') as mock_converter_class:
+            
+            # 模擬轉換器
+            mock_converter = Mock()
+            mock_converter_class.return_value = mock_converter
+            
+            # 模擬頁面數據
+            mock_page = Mock()
+            mock_block = Mock()
+            mock_block.block_type = "paragraph"
+            mock_block.text = "Test content"
+            mock_page.children = [mock_block]
+            
+            mock_rendered = Mock()
+            mock_rendered.children = [mock_page]
+            mock_converter.return_value = mock_rendered
+            
+            # 創建臨時 PDF 檔案
+            self.temp_dir = tempfile.mkdtemp()
+            test_pdf = os.path.join(self.temp_dir, "test.pdf")
+            with open(test_pdf, "w") as f:
+                f.write("dummy pdf content")
+            
             converter = MarkerConverter()
-            info = converter.get_conversion_info(str(test_pdf))
+            result = converter.convert_pdf_to_markdown(test_pdf)
             
-            assert info["file_name"] == test_pdf.name
-            assert info["extension"] == ".pdf"
-            assert info["file_size"] > 0
-            
-        except ImportError:
-            pytest.skip("Marker package not installed")
-        except Exception as e:
-            pytest.fail(f"Unexpected error: {e}")
+            assert "## Page 1" in result
+            assert "Test content" in result
 
 
 if __name__ == "__main__":

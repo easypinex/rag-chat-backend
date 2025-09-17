@@ -4,9 +4,8 @@
 
 ## 功能特色
 
-- ✅ **標準轉換器**: 使用 Marker 的標準 API 進行快速轉換
-- ✅ **JSON 轉換器**: 使用 Marker 的 JSON API 獲取每頁結構化數據
-- ✅ **頁碼支援**: JSON 轉換器支援在 Markdown 中插入頁碼標記
+- ✅ **轉換器**: 使用 Marker 獲取每頁結構化數據
+- ✅ **頁碼支援**: 轉換器支援在 Markdown 中插入頁碼標記
 - ✅ **表格轉換**: 智能將 HTML 表格轉換為 Markdown 表格
 - ✅ **複雜表格處理**: 自動檢測並保留包含 rowspan/colspan 的複雜表格
 - ✅ **批量轉換**: 支援批量處理多個 PDF 檔案
@@ -16,23 +15,18 @@
 
 ```
 service/markdown_marker/
-├── json_marker_converter.py      # JSON 轉換器（主要）
-├── marker_converter.py           # 標準轉換器（主要）
+├── marker_converter.py           # 轉換器（主要）
 ├── README.md                     # 說明文檔
 ├── __init__.py                   # 模組初始化
 ├── examples/                     # 使用範例
-│   ├── example_usage.py          # 標準轉換器範例
-│   ├── json_example_usage.py     # JSON 轉換器範例
-│   ├── demo_json_converter.py    # 互動式演示
-│   └── debug_marker_output.py    # 調試工具
+│   └── example_usage.py          # 進階轉換器範例
 ├── tests/                        # 測試檔案
-│   ├── test_marker_converter.py  # 標準轉換器測試
-│   ├── test_json_marker_converter.py # JSON 轉換器測試
+│   ├── test_marker_converter.py  # 轉換器測試
 │   ├── test_conversion.py        # 轉換測試
-│   └── json_test_conversion.py   # JSON 轉換測試
+│   └── test_conversion_advanced.py   # 進階轉換測試
 ├── docs/                         # 文檔
 │   └── IMPLEMENTATION_SUMMARY.md # 實現總結
-└── json_converted/               # 轉換輸出目錄
+└── converted/                    # 轉換輸出目錄
     └── *.md                      # 轉換後的 Markdown 檔案
 ```
 
@@ -44,7 +38,7 @@ pip install marker-pdf[full]
 
 ## 基本使用
 
-### 標準轉換器（快速轉換）
+### 轉換器（結構化轉換）
 
 ```python
 from service.markdown_marker import MarkerConverter
@@ -52,29 +46,11 @@ from service.markdown_marker import MarkerConverter
 # 建立轉換器
 converter = MarkerConverter()
 
-# 轉換單一 PDF 檔案
-markdown_content = converter.convert_pdf_to_markdown("path/to/file.pdf")
-
-# 指定輸出路徑
-markdown_content = converter.convert_pdf_to_markdown(
-    "path/to/file.pdf", 
-    "path/to/output.md"
-)
-```
-
-### JSON 轉換器（結構化轉換）
-
-```python
-from service.markdown_marker import JsonMarkerConverter
-
-# 建立 JSON 轉換器
-converter = JsonMarkerConverter()
-
 # 轉換單一 PDF 檔案（帶頁碼）
 markdown_content = converter.convert_pdf_to_markdown("path/to/file.pdf")
 
 # 獲取頁面結構資訊和內容
-result = converter.marker_json_pages("path/to/file.pdf")
+result = converter.marker_pages("path/to/file.pdf")
 print(f"檔案: {result['file_name']}")
 print(f"總頁數: {result['total_pages']}")
 
@@ -127,7 +103,7 @@ converter = MarkerConverter(model_locations)
 ### 便利函數
 
 ```python
-from service.markdown2.marker_converter import create_marker_converter
+from service.markdown_marker import create_marker_converter
 
 # 使用便利函數建立轉換器
 converter = create_marker_converter()
@@ -140,7 +116,6 @@ converter = create_marker_converter()
 ```bash
 cd service/markdown_marker
 python -m pytest tests/test_marker_converter.py -v
-python -m pytest tests/test_json_marker_converter.py -v
 ```
 
 ### 執行轉換測試
@@ -148,7 +123,7 @@ python -m pytest tests/test_json_marker_converter.py -v
 ```bash
 cd service/markdown_marker
 python tests/test_conversion.py
-python tests/json_test_conversion.py
+python tests/test_conversion_advanced.py
 ```
 
 ### 執行使用範例
@@ -156,8 +131,6 @@ python tests/json_test_conversion.py
 ```bash
 cd service/markdown_marker
 python examples/example_usage.py
-python examples/json_example_usage.py
-python examples/demo_json_converter.py
 python examples/type_examples.py
 ```
 
@@ -166,7 +139,7 @@ python examples/type_examples.py
 ```bash
 cd service/markdown_marker
 python tests/test_conversion.py
-python tests/json_test_conversion.py
+python tests/test_conversion_advanced.py
 ```
 
 ## 轉換器比較
@@ -195,7 +168,7 @@ JSON 轉換器提供智能表格轉換：
 
 ```python
 # 獲取詳細的頁面結構資訊和內容
-result = converter.marker_json_pages("document.pdf")
+result = converter.marker_pages("document.pdf")
 for page in result['pages']:
     print(f"第 {page['page_number']} 頁:")
     print(f"  - 內容長度: {page['content_length']} 字元")
@@ -209,15 +182,15 @@ for page in result['pages']:
 ### 主要類型
 
 ```python
-from json_marker_converter import (
-    JsonMarkerConverter, 
+from marker_converter import (
+    MarkerConverter, 
     PagesResult,
     PageContent
 )
 
 # 明確的類型提示
-converter = JsonMarkerConverter()
-result: PagesResult = converter.marker_json_pages("document.pdf")
+converter = MarkerConverter()
+result: PagesResult = converter.marker_pages("document.pdf")
 
 # 檢查頁面內容和資訊
 print(f"檔案: {result['file_name']}")

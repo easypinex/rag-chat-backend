@@ -1,7 +1,7 @@
 """
 簡單的轉換測試腳本
 
-用於快速測試 Marker 轉換功能
+用於快速測試 Advanced Marker 轉換功能
 """
 
 import sys
@@ -12,6 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from marker_converter import MarkerConverter
+
+# 設定專案根目錄
+project_root = Path(__file__).parent.parent.parent
 
 
 def test_basic_conversion():
@@ -32,7 +35,7 @@ def test_basic_conversion():
     # 建立轉換器
     try:
         converter = MarkerConverter()
-        print("✓ Marker 轉換器建立成功")
+        print("✓ Advanced Marker 轉換器建立成功")
     except Exception as e:
         print(f"✗ 建立轉換器失敗: {e}")
         return False
@@ -147,7 +150,7 @@ def test_batch_conversion():
 
 def main():
     """主函數"""
-    print("Marker 轉換功能測試")
+        print("Marker 轉換功能測試")
     print("=" * 50)
     
     # 基本轉換測試

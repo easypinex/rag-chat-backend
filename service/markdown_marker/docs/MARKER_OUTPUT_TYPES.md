@@ -56,7 +56,7 @@ rendered: MarkdownOutput = self.converter(input_pdf)
 ### 基本使用
 
 ```python
-def marker_json_pages(self, input_pdf: str) -> List[str]:
+def marker_pages(self, input_pdf: str) -> List[str]:
     """獲取 PDF 的每頁內容"""
     try:
         # 明確標注返回類型
@@ -99,7 +99,7 @@ def get_full_marker_output(self, input_pdf: str) -> Dict[str, Any]:
 def get_pages_with_analysis(self, input_pdf: str) -> PagesResult:
     """獲取頁面列表和詳細分析"""
     try:
-        result = self.marker_json_pages(input_pdf)
+        result = self.marker_pages(input_pdf)
         
         # 添加額外的統計資訊
         total_chars = sum(page['content_length'] for page in result['pages'])

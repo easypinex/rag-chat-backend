@@ -1,7 +1,7 @@
 """
 Marker Converter 使用範例
 
-展示如何使用 JSON Marker 轉換器進行 PDF 到 Markdown 的轉換
+展示如何使用 Marker 轉換器進行 PDF 到 Markdown 的轉換
 採用 QUICK_START.md 推薦的方法
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 # 添加父目錄到 Python 路徑
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from json_marker_converter import JsonMarkerConverter, PagesResult
+from marker_converter import MarkerConverter, PagesResult
 
 # 設置日誌
 logging.basicConfig(level=logging.INFO)
@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 def example_single_pdf_conversion():
-    """單一 PDF 檔案轉換範例 - 使用 JSON 轉換器"""
-    print("=== 單一 PDF 檔案轉換範例 (JSON 轉換器) ===")
+    """單一 PDF 檔案轉換範例 - 使用 Marker 轉換器"""
+    print("=== 單一 PDF 檔案轉換範例 (Marker 轉換器) ===")
     
     # 建立轉換器
     try:
-        converter = JsonMarkerConverter()
-        print("✓ JSON Marker 轉換器建立成功")
+        converter = MarkerConverter()
+        print("✓ Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ Marker 套件未安裝: {e}")
         return
@@ -43,13 +43,13 @@ def example_single_pdf_conversion():
     test_pdf = pdf_files[0]
     print(f"使用測試檔案: {test_pdf.name}")
     
-    # 方法 1: 完整轉換 (marker_json_to_markdown)
+    # 方法 1: 完整轉換 (marker_to_markdown)
     try:
         print("\n--- 方法 1: 完整轉換 ---")
-        markdown_content = converter.marker_json_to_markdown(str(test_pdf))
+        markdown_content = converter.marker_to_markdown(str(test_pdf))
         
         # 保存到檔案
-        output_path = test_pdf.parent / f"{test_pdf.stem}_json_marker.md"
+        output_path = test_pdf.parent / f"{test_pdf.stem}_marker.md"
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(markdown_content)
         
@@ -61,10 +61,10 @@ def example_single_pdf_conversion():
     except Exception as e:
         print(f"✗ 完整轉換失敗: {e}")
     
-    # 方法 2: 頁面列表和資訊 (marker_json_pages)
+    # 方法 2: 頁面列表和資訊 (marker_pages)
     try:
         print("\n--- 方法 2: 頁面列表和資訊 ---")
-        result: PagesResult = converter.marker_json_pages(str(test_pdf))
+        result: PagesResult = converter.marker_pages(str(test_pdf))
         
         print(f"✓ 頁面分析成功!")
         print(f"  - 檔案名: {result['file_name']}")
@@ -98,12 +98,12 @@ def example_single_pdf_conversion():
 
 
 def example_batch_conversion():
-    """批量轉換範例 - 使用 JSON 轉換器"""
-    print("\n=== 批量轉換範例 (JSON 轉換器) ===")
+    """批量轉換範例 - 使用 Marker 轉換器"""
+    print("\n=== 批量轉換範例 (Marker 轉換器) ===")
     
     try:
-        converter = JsonMarkerConverter()
-        print("✓ JSON Marker 轉換器建立成功")
+        converter = MarkerConverter()
+        print("✓ Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ Marker 套件未安裝: {e}")
         return
@@ -136,10 +136,10 @@ def example_batch_conversion():
             print(f"\n處理檔案: {pdf_file.name}")
             
             # 使用完整轉換方法
-            markdown_content = converter.marker_json_to_markdown(str(pdf_file))
+            markdown_content = converter.marker_to_markdown(str(pdf_file))
             
             # 保存到輸出目錄
-            output_file = output_dir / f"{pdf_file.stem}_json_marker.md"
+            output_file = output_dir / f"{pdf_file.stem}_marker.md"
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(markdown_content)
             
@@ -161,8 +161,8 @@ def example_page_analysis():
     print("\n=== 頁面分析範例 ===")
     
     try:
-        converter = JsonMarkerConverter()
-        print("✓ JSON Marker 轉換器建立成功")
+        converter = MarkerConverter()
+        print("✓ Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ Marker 套件未安裝: {e}")
         return
@@ -180,7 +180,7 @@ def example_page_analysis():
     
     try:
         # 獲取頁面分析結果
-        result: PagesResult = converter.marker_json_pages(str(test_pdf))
+        result: PagesResult = converter.marker_pages(str(test_pdf))
         
         print(f"\n=== 檔案分析結果 ===")
         print(f"檔案名: {result['file_name']}")
@@ -237,8 +237,8 @@ def example_table_analysis():
     print("\n=== 表格分析範例 ===")
     
     try:
-        converter = JsonMarkerConverter()
-        print("✓ JSON Marker 轉換器建立成功")
+        converter = MarkerConverter()
+        print("✓ Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ Marker 套件未安裝: {e}")
         return
@@ -256,7 +256,7 @@ def example_table_analysis():
     
     try:
         # 獲取頁面分析結果
-        result: PagesResult = converter.marker_json_pages(str(test_pdf))
+        result: PagesResult = converter.marker_pages(str(test_pdf))
         
         # 收集所有表格
         all_tables = []
@@ -304,19 +304,19 @@ def example_table_analysis():
 
 
 def example_error_handling():
-    """錯誤處理範例 - JSON 轉換器"""
-    print("\n=== 錯誤處理範例 (JSON 轉換器) ===")
+    """錯誤處理範例 - Marker 轉換器"""
+    print("\n=== 錯誤處理範例 (Marker 轉換器) ===")
     
     try:
-        converter = JsonMarkerConverter()
-        print("✓ JSON Marker 轉換器建立成功")
+        converter = MarkerConverter()
+        print("✓ Marker 轉換器建立成功")
     except ImportError as e:
         print(f"✗ Marker 套件未安裝: {e}")
         return
     
     # 測試不存在的檔案 - 完整轉換方法
     try:
-        converter.marker_json_to_markdown("nonexistent.pdf")
+        converter.marker_to_markdown("nonexistent.pdf")
     except FileNotFoundError as e:
         print(f"✓ 正確捕獲檔案不存在錯誤 (完整轉換): {e}")
     except Exception as e:
@@ -324,7 +324,7 @@ def example_error_handling():
     
     # 測試不存在的檔案 - 頁面分析方法
     try:
-        converter.marker_json_pages("nonexistent.pdf")
+        converter.marker_pages("nonexistent.pdf")
     except FileNotFoundError as e:
         print(f"✓ 正確捕獲檔案不存在錯誤 (頁面分析): {e}")
     except Exception as e:
@@ -336,7 +336,7 @@ def example_error_handling():
         invalid_pdf = Path("invalid.pdf")
         invalid_pdf.write_text("This is not a PDF file")
         
-        converter.marker_json_to_markdown(str(invalid_pdf))
+        converter.marker_to_markdown(str(invalid_pdf))
     except Exception as e:
         print(f"✓ 正確捕獲無效 PDF 錯誤: {e}")
     finally:
@@ -347,7 +347,7 @@ def example_error_handling():
 
 def main():
     """主函數"""
-    print("JSON Marker Converter 使用範例")
+    print("Marker Converter 使用範例")
     print("採用 QUICK_START.md 推薦的方法")
     print("=" * 60)
     
