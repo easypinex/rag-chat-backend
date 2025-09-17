@@ -68,8 +68,8 @@ class PagesResult(TypedDict):
 
 class MarkerConverter:
     """
-    基於 Marker 的 PDF 到 Markdown 轉換器
-    支援每頁結構化輸出和表格轉換
+    基於 Marker 的文件到 Markdown 轉換器
+    支援 PDF 和 XLSX 檔案轉換，提供每頁結構化輸出和表格轉換
     """
     
     def __init__(self, model_locations: Optional[Dict[str, str]] = None):
@@ -98,10 +98,13 @@ class MarkerConverter:
                 "paginate_output": True
             })
             artifact_dict = create_model_dict()
+            
+            # 初始化轉換器（支援 PDF 和 XLSX）
             self.converter = PdfConverter(
                 config=cfg.generate_config_dict(),
                 artifact_dict=artifact_dict
             )
+            
             logger.info("Marker converter initialized successfully with pagination enabled")
         except Exception as e:
             logger.error(f"Failed to initialize Marker converter: {e}")
@@ -221,12 +224,12 @@ class MarkerConverter:
 
         return ""
     
-    def marker_pages(self, input_pdf: str) -> PagesResult:
+    def marker_pages(self, input_file: str) -> PagesResult:
         """
-        使用 Marker 獲取 PDF 的每頁內容結構和資訊
+        使用 Marker 獲取文件的每頁內容結構和資訊
         
         Args:
-            input_pdf (str): PDF 檔案路徑
+            input_file (str): 檔案路徑（支援 PDF 和 XLSX）
             
         Returns:
             PagesResult: 包含頁面內容和資訊的結構化數據
@@ -242,6 +245,7 @@ class MarkerConverter:
         Example:
             >>> converter = MarkerConverter()
             >>> result = converter.marker_pages("document.pdf")
+            >>> result = converter.marker_pages("spreadsheet.xlsx")
             >>> print(f"檔案: {result['file_name']}")
             >>> print(f"總共 {result['total_pages']} 頁")
             >>> for page in result['pages']:
@@ -250,13 +254,20 @@ class MarkerConverter:
             ...     print(f"內容預覽: {page['content'][:100]}...")
         
         Note:
-            - 返回的頁面列表是智能分割的結果，不是原始 PDF 的物理頁面
+            - 返回的頁面列表是智能分割的結果，不是原始文件的物理頁面
             - 分割策略：優先按標題分割，其次按段落分割
             - 每頁都包含完整的內容和統計資訊
         """
         try:
+            file_path = Path(input_file)
+            file_extension = file_path.suffix.lower()
+            
+            # 檢查支援的檔案格式
+            if file_extension not in ['.pdf', '.xlsx']:
+                raise ValueError(f"Unsupported file format: {file_extension}. Supported formats: .pdf, .xlsx")
+            
             # Marker 轉換器返回 MarkdownOutput 對象
-            rendered: 'MarkdownOutput' = self.converter(input_pdf)
+            rendered: 'MarkdownOutput' = self.converter(input_file)
             
             # MarkdownOutput 對象包含以下主要屬性：
             # - markdown: str - 完整的 Markdown 內容
@@ -289,17 +300,17 @@ class MarkerConverter:
                 pages_with_info.append(page_info)
             
             # 構建結果
-            file_name = Path(input_pdf).name
+            file_name = file_path.name
             result: PagesResult = {
                 'file_name': file_name,
                 'total_pages': len(pages_with_info),
                 'pages': pages_with_info
             }
             
-            logger.info(f"Extracted {len(pages_with_info)} pages from PDF: {file_name}")
+            logger.info(f"Extracted {len(pages_with_info)} pages from {file_extension.upper()} file: {file_name}")
             return result
         except Exception as e:
-            logger.error(f"Failed to extract pages from PDF: {e}")
+            logger.error(f"Failed to extract pages from file: {e}")
             raise
     
     def _split_markdown_by_pages(self, markdown_content: str, rendered: 'MarkdownOutput' = None) -> List[str]:
@@ -583,17 +594,17 @@ class MarkerConverter:
         
         return block_count, block_types, tables
     
-    def marker_to_markdown(self, input_pdf: str) -> str:
+    def marker_to_markdown(self, input_file: str) -> str:
         """
         使用 Marker 結構生成 Markdown
         
         Args:
-            input_pdf: PDF 檔案路徑
+            input_file: 檔案路徑（支援 PDF 和 XLSX）
             
         Returns:
             轉換後的 Markdown 內容
         """
-        result = self.marker_pages(input_pdf)
+        result = self.marker_pages(input_file)
         parts = []
         
         for page_info in result['pages']:
@@ -614,6 +625,55 @@ class MarkerConverter:
         md = re.sub(r"\n{4,}", "\n\n", md)
         return md
     
+    def convert_file_to_markdown(
+        self, 
+        file_path: str, 
+        output_path: Optional[str] = None,
+        **kwargs
+    ) -> str:
+        """
+        將檔案轉換為 Markdown（使用 Marker API）
+        
+        Args:
+            file_path: 檔案路徑（支援 PDF 和 XLSX）
+            output_path: 輸出 Markdown 檔案路徑，如果為 None 則自動生成
+            **kwargs: 其他轉換參數
+            
+        Returns:
+            轉換後的 Markdown 內容
+        """
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        # 檢查檔案格式
+        file_extension = file_path.suffix.lower()
+        if file_extension not in ['.pdf', '.xlsx']:
+            raise ValueError(f"Unsupported file format: {file_extension}. Supported formats: .pdf, .xlsx")
+        
+        # 如果沒有指定輸出路徑，則在相同目錄下生成 .md 檔案
+        if output_path is None:
+            output_path = file_path.with_suffix('.md')
+        else:
+            output_path = Path(output_path)
+        
+        try:
+            logger.info(f"Converting {file_extension.upper()} file to Markdown using Marker API: {file_path}")
+            
+            # 使用 Marker API 進行轉換
+            markdown_content = self.marker_to_markdown(str(file_path))
+            
+            # 將轉換結果寫入檔案
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+            
+            logger.info(f"Conversion completed. Output saved to: {output_path}")
+            return markdown_content
+            
+        except Exception as e:
+            logger.error(f"Failed to convert {file_extension.upper()} file: {e}")
+            raise
+    
     def convert_pdf_to_markdown(
         self, 
         pdf_path: str, 
@@ -631,32 +691,26 @@ class MarkerConverter:
         Returns:
             轉換後的 Markdown 內容
         """
-        pdf_path = Path(pdf_path)
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+        return self.convert_file_to_markdown(pdf_path, output_path, **kwargs)
+    
+    def convert_xlsx_to_markdown(
+        self, 
+        xlsx_path: str, 
+        output_path: Optional[str] = None,
+        **kwargs
+    ) -> str:
+        """
+        將 XLSX 檔案轉換為 Markdown（使用 Marker API）
         
-        # 如果沒有指定輸出路徑，則在相同目錄下生成 .md 檔案
-        if output_path is None:
-            output_path = pdf_path.with_suffix('.md')
-        else:
-            output_path = Path(output_path)
-        
-        try:
-            logger.info(f"Converting PDF to Markdown using Marker API: {pdf_path}")
+        Args:
+            xlsx_path: XLSX 檔案路徑
+            output_path: 輸出 Markdown 檔案路徑，如果為 None 則自動生成
+            **kwargs: 其他轉換參數
             
-            # 使用 Marker API 進行轉換
-            markdown_content = self.marker_to_markdown(str(pdf_path))
-            
-            # 將轉換結果寫入檔案
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
-            
-            logger.info(f"Conversion completed. Output saved to: {output_path}")
-            return markdown_content
-            
-        except Exception as e:
-            logger.error(f"Failed to convert PDF: {e}")
-            raise
+        Returns:
+            轉換後的 Markdown 內容
+        """
+        return self.convert_file_to_markdown(xlsx_path, output_path, **kwargs)
     
     def convert_multiple_pdfs(
         self, 
