@@ -91,8 +91,8 @@ class ChunkSplitter:
         分割 Markdown 內容
         
         Args:
-            input_data: 輸入數據（文件路徑或 ConversionResult 對象）
-            output_excel: 是否輸出 Excel 文件
+            input_data: 輸入數據（MD文件 路徑或 ConversionResult 對象）
+            output_excel: 是否輸出報告 Excel 文件
             output_path: Excel 輸出路徑
             md_output_path: Markdown 輸出路徑
             
