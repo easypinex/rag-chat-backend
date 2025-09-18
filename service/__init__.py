@@ -20,7 +20,15 @@ try:
 except ImportError:
     LangChainConverter = None
 
-# Build __all__ list with available converters
+try:
+    from .chunk import ChunkSplitter, ExcelExporter, TableHandler, MarkdownNormalizer
+except ImportError:
+    ChunkSplitter = None
+    ExcelExporter = None
+    TableHandler = None
+    MarkdownNormalizer = None
+
+# Build __all__ list with available converters and chunk tools
 __all__ = []
 if MarkitdownConverter:
     __all__.append('MarkitdownConverter')
@@ -28,4 +36,12 @@ if MarkerConverter:
     __all__.append('MarkerConverter')
 if LangChainConverter:
     __all__.append('LangChainConverter')
+if ChunkSplitter:
+    __all__.append('ChunkSplitter')
+if ExcelExporter:
+    __all__.append('ExcelExporter')
+if TableHandler:
+    __all__.append('TableHandler')
+if MarkdownNormalizer:
+    __all__.append('MarkdownNormalizer')
 

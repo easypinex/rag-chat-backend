@@ -36,7 +36,8 @@ class UnifiedMarkdownConverter:
     def __init__(self, 
                  marker_model_locations: Optional[Dict[str, str]] = None,
                  markitdown_input_dir: str = "raw_docs",
-                 markitdown_output_dir: str = "service/markdown_integrate/markitdown/converted"):
+                 markitdown_output_dir: str = "service/markdown_integrate/markitdown/converted",
+                 enable_markitdown_page_splitting: bool = False): # 預設不啟用頁面分割功能
         """
         初始化統一轉換器
         
@@ -44,12 +45,13 @@ class UnifiedMarkdownConverter:
             marker_model_locations: Marker 模型位置配置
             markitdown_input_dir: Markitdown 輸入目錄
             markitdown_output_dir: Markitdown 輸出目錄
+            enable_markitdown_page_splitting: 是否啟用 Markitdown 頁面分割功能
         """
         self.marker_converter: Optional[MarkerConverter] = None
         self.markitdown_converter: Optional[MarkitdownConverter] = None
-        self._initialize_converters(marker_model_locations, markitdown_input_dir, markitdown_output_dir)
+        self._initialize_converters(marker_model_locations, markitdown_input_dir, markitdown_output_dir, enable_markitdown_page_splitting)
     
-    def _initialize_converters(self, marker_model_locations, markitdown_input_dir, markitdown_output_dir):
+    def _initialize_converters(self, marker_model_locations, markitdown_input_dir, markitdown_output_dir, enable_markitdown_page_splitting):
         """初始化兩個轉換器"""
         # 初始化 Marker 轉換器
         if MARKER_AVAILABLE:
@@ -64,7 +66,11 @@ class UnifiedMarkdownConverter:
         # 初始化 Markitdown 轉換器
         if MARKITDOWN_AVAILABLE:
             try:
-                self.markitdown_converter = MarkitdownConverter(markitdown_input_dir, markitdown_output_dir)
+                self.markitdown_converter = MarkitdownConverter(
+                    markitdown_input_dir, 
+                    markitdown_output_dir, 
+                    enable_page_splitting=enable_markitdown_page_splitting
+                )
                 logger.info("Markitdown converter initialized")
             except Exception as e:
                 logger.warning(f"Failed to initialize Markitdown converter: {e}")
@@ -188,58 +194,49 @@ class UnifiedMarkdownConverter:
         pages: List[PageInfo] = []
         total_tables: int = 0
         
-        # 特殊處理 Excel 檔案 - 使用工作表信息
-        if file_path.suffix.lower() in ['.xlsx', '.xls']:
-            # Excel 檔案：使用工作表信息創建頁面
-            sheets: Optional[List[Dict[str, str]]] = markitdown_result.get('sheets')
-            if sheets:
-                for i, sheet in enumerate(sheets, 1):
-                    page = PageInfo(
-                        page_number=i,
-                        title=sheet.get('title'),  # 可能是 None
-                        content=sheet.get('content', ''),
-                        content_length=len(sheet.get('content', '')),
-                        block_count=0,  # Markitdown 不提供此信息
-                        block_types=None,  # Markitdown 不提供此信息
-                        tables=None,  # Markitdown 不提供表格信息
-                        table_count=0
-                    )
-                    pages.append(page)
-            else:
-                # 如果沒有工作表信息，使用頁面信息
-                page_contents: Optional[List[str]] = markitdown_result.get('pages')
-                if page_contents:
-                    for i, page_content in enumerate(page_contents, 1):
+        # 檢查是否啟用頁面分割
+        page_contents: Optional[List[str]] = markitdown_result.get('pages')
+        page_titles: Optional[List[str]] = markitdown_result.get('page_titles')
+        
+        if page_contents and len(page_contents) > 0:
+            # 有頁面內容，創建頁面信息
+            for i, page_content in enumerate(page_contents, 1):
+                # 獲取對應的頁面標題
+                title = None
+                if page_titles and i <= len(page_titles):
+                    title = page_titles[i-1]
+                
+                page = PageInfo(
+                    page_number=i,
+                    title=title,
+                    content=page_content,
+                    content_length=len(page_content),
+                    block_count=0,  # Markitdown 不提供此信息
+                    block_types=None,  # Markitdown 不提供此信息
+                    tables=None,  # Markitdown 不提供表格信息
+                    table_count=0
+                )
+                pages.append(page)
+        else:
+            # 沒有頁面內容，檢查是否有工作表信息（僅用於 Excel 且啟用頁面分割時）
+            if file_path.suffix.lower() in ['.xlsx', '.xls'] and self.markitdown_converter and self.markitdown_converter.enable_page_splitting:
+                sheets: Optional[List[Dict[str, str]]] = markitdown_result.get('sheets')
+                if sheets:
+                    for i, sheet in enumerate(sheets, 1):
                         page = PageInfo(
                             page_number=i,
-                            title=None,  # 非 Excel 頁面可能沒有標題
-                            content=page_content,
-                            content_length=len(page_content),
+                            title=sheet.get('title'),  # 可能是 None
+                            content=sheet.get('content', ''),
+                            content_length=len(sheet.get('content', '')),
                             block_count=0,  # Markitdown 不提供此信息
                             block_types=None,  # Markitdown 不提供此信息
                             tables=None,  # Markitdown 不提供表格信息
                             table_count=0
                         )
                         pages.append(page)
-        else:
-            # 非 Excel 檔案：使用頁面信息
-            page_contents: Optional[List[str]] = markitdown_result.get('pages')
-            if page_contents:
-                for i, page_content in enumerate(page_contents, 1):
-                    page = PageInfo(
-                        page_number=i,
-                        title=None,  # 非 Excel 頁面可能沒有標題
-                        content=page_content,
-                        content_length=len(page_content),
-                        block_count=0,  # Markitdown 不提供此信息
-                        block_types=None,  # Markitdown 不提供此信息
-                        tables=None,  # Markitdown 不提供表格信息
-                        table_count=0
-                    )
-                    pages.append(page)
         
-        # 如果沒有頁面，創建一個包含全部內容的頁面
-        if not pages:
+        # 如果沒有頁面且啟用頁面分割，創建一個包含全部內容的頁面
+        if not pages and self.markitdown_converter and self.markitdown_converter.enable_page_splitting:
             full_content: str = markitdown_result.get('full_text', '')
             page = PageInfo(
                 page_number=1,

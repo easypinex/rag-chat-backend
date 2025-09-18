@@ -25,16 +25,18 @@ class MarkitdownConverter:
         '.zip', '.epub', '.mobi'
     }
     
-    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "service/markdown_integrate/markitdown/converted"):
+    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "service/markdown_integrate/markitdown/converted", enable_page_splitting: bool = False):
         """
         初始化轉換器。
         
         Args:
             input_dir: 包含要轉換的檔案的目錄
             output_dir: 儲存轉換後 markdown 檔案的目錄
+            enable_page_splitting: 是否啟用頁面分割功能（使用 ## 標題分割）
         """
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
+        self.enable_page_splitting = enable_page_splitting
         self.converter = MarkItDown()
         
         # 如果輸出目錄不存在則建立
@@ -43,6 +45,7 @@ class MarkitdownConverter:
         logger.info(f"MarkitdownConverter initialized")
         logger.info(f"Input directory: {self.input_dir.absolute()}")
         logger.info(f"Output directory: {self.output_dir.absolute()}")
+        logger.info(f"Page splitting enabled: {self.enable_page_splitting}")
         logger.info(f"Supported formats: {', '.join(sorted(self.SUPPORTED_EXTENSIONS))}")
     
     def is_supported_file(self, file_path: Path) -> bool:
@@ -230,6 +233,79 @@ class MarkitdownConverter:
         
         return converted_files
     
+    def _split_by_headers(self, content: str) -> List[str]:
+        """
+        使用 ## 標題分割內容為頁面。
+        
+        Args:
+            content: 要分割的 markdown 內容
+            
+        Returns:
+            分割後的頁面列表
+        """
+        if not content.strip():
+            return []
+        
+        # 按 ## 標題分割內容
+        sections = content.split('\n## ')
+        
+        if len(sections) <= 1:
+            # 沒有找到 ## 標題，返回整個內容作為一頁
+            return [content.strip()] if content.strip() else []
+        
+        pages = []
+        
+        # 處理第一個部分（可能沒有 ## 前綴）
+        first_section = sections[0].strip()
+        if first_section:
+            # 檢查是否以 ## 開頭
+            if first_section.startswith('## '):
+                # 移除 ## 前綴
+                first_section = first_section[3:].strip()
+            if first_section:
+                pages.append(first_section)
+        
+        # 處理其餘部分（都有 ## 前綴）
+        for section in sections[1:]:
+            if section.strip():
+                # 確保有 ## 前綴
+                if not section.startswith('## '):
+                    section = '## ' + section
+                pages.append(section.strip())
+        
+        return pages
+    
+    def _extract_page_title(self, page_content: str, page_number: int) -> str:
+        """
+        從頁面內容中提取標題。
+        
+        Args:
+            page_content: 頁面內容
+            page_number: 頁面編號
+            
+        Returns:
+            提取的標題，如果沒有找到則返回預設標題
+        """
+        if not page_content.strip():
+            return f"Page {page_number}"
+        
+        lines = page_content.strip().split('\n')
+        
+        # 尋找第一個非空行作為標題
+        for line in lines:
+            line = line.strip()
+            if line:
+                # 移除 markdown 標題符號
+                if line.startswith('#'):
+                    line = line.lstrip('#').strip()
+                # 移除其他 markdown 符號
+                line = line.replace('**', '').replace('*', '').replace('`', '')
+                if line:
+                    return line[:50]  # 限制標題長度
+        
+        # 如果沒有找到合適的標題，使用預設標題
+        return f"Page {page_number}"
+    
     def convert_file_to_pages(self, file_path: str, output_filename: Optional[str] = None) -> List[str]:
         """
         將檔案轉換為頁面列表（每頁一個字串）。
@@ -255,6 +331,11 @@ class MarkitdownConverter:
             # 將檔案轉換為 markdown
             result: DocumentConverterResult = self.converter.convert(str(file_path))
             
+            # 如果未啟用頁面分割，返回空列表
+            if not self.enable_page_splitting:
+                logger.info(f"Page splitting disabled, returning empty pages list for: {file_path.name}")
+                return []
+            
             # 根據檔案類型分割頁面
             pages = []
             if file_path.suffix.lower() in ['.pdf']:
@@ -272,9 +353,14 @@ class MarkitdownConverter:
                     pages = [slides[0]] + [f'<!-- Slide number:{slide}' for slide in slides[1:]]
                 else:
                     pages = [content]
+            elif file_path.suffix.lower() in ['.xlsx', '.xls']:
+                # Excel 檔案：使用 ## 標題分割
+                content = result.text_content
+                pages = self._split_by_headers(content)
             else:
-                # 其他檔案類型：返回整個內容作為一頁
-                pages = [result.text_content]
+                # 其他檔案類型：使用 ## 標題分割
+                content = result.text_content
+                pages = self._split_by_headers(content)
             
             logger.info(f"Successfully converted to {len(pages)} pages: {file_path.name}")
             return pages
@@ -398,6 +484,15 @@ class MarkitdownConverter:
             # 獲取頁面內容
             pages = self.convert_file_to_pages(str(file_path))
             conversion_result['pages'] = pages
+            
+            # 如果啟用頁面分割且有頁面，添加頁面標題
+            if self.enable_page_splitting and pages:
+                page_titles = []
+                for i, page_content in enumerate(pages, 1):
+                    # 嘗試從頁面內容中提取標題
+                    title = self._extract_page_title(page_content, i)
+                    page_titles.append(title)
+                conversion_result['page_titles'] = page_titles
             
             # 如果是 Excel 檔案，添加工作表資訊
             if file_path.suffix.lower() in ['.xlsx', '.xls']:
