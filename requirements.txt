@@ -1,10 +1,8 @@
-markitdown[all]>=0.0.1a0
 pytest>=7.0.0
 pytest-cov>=4.0.0
 python-dotenv>=1.0.0
-pdfplumber
+markitdown[all]>=0.0.1a0
 marker-pdf[full]>=0.2.0
+beautifulsoup4>=4.12.0
 langchain>=0.1.0
 langchain-community>=0.0.20
-unstructured[pdf]>=0.11.0
-beautifulsoup4>=4.12.0
