@@ -9,11 +9,17 @@
 - PageInfo: 頁面信息
 - TableInfo: 表格信息
 - FormatRouter: 格式路由器
+- MarkerConverter: Marker 轉換器
+- MarkitdownConverter: Markitdown 轉換器
 """
 
 from .unified_converter import UnifiedMarkdownConverter
 from .data_models import ConversionResult, PageInfo, TableInfo, ConversionMetadata
 from .format_router import FormatRouter
+
+# 導入子模組
+from . import marker
+from . import markitdown
 
 __version__ = "1.0.0"
 __author__ = "RAG Chat Backend Team"
@@ -25,5 +31,7 @@ __all__ = [
     'PageInfo',
     'TableInfo',
     'ConversionMetadata',
-    'FormatRouter'
+    'FormatRouter',
+    'marker',
+    'markitdown'
 ]

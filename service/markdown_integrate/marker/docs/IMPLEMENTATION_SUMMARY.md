@@ -73,7 +73,7 @@ def get_page_info(self, pdf_path: str) -> PageInfo:
 ## 檔案結構
 
 ```
-service/markdown_marker/
+service/markdown_integrate/marker/
 ├── marker_converter.py           # 核心轉換器
 ├── __init__.py                   # 模組初始化
 ├── README.md                     # 完整文檔

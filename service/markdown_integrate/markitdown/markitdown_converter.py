@@ -25,7 +25,7 @@ class MarkitdownConverter:
         '.zip', '.epub', '.mobi'
     }
     
-    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "service/markdown_markitdown/converted"):
+    def __init__(self, input_dir: str = "raw_docs", output_dir: str = "service/markdown_integrate/markitdown/converted"):
         """
         初始化轉換器。
         

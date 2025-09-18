@@ -14,7 +14,7 @@
 ## 目錄結構
 
 ```
-service/markdown_marker/
+service/markdown_integrate/marker/
 ├── marker_converter.py           # 轉換器（主要）
 ├── README.md                     # 說明文檔
 ├── __init__.py                   # 模組初始化
@@ -41,7 +41,7 @@ pip install marker-pdf[full]
 ### 轉換器（結構化轉換）
 
 ```python
-from service.markdown_marker import MarkerConverter
+from service.markdown_integrate.marker import MarkerConverter
 
 # 建立轉換器
 converter = MarkerConverter()
@@ -103,7 +103,7 @@ converter = MarkerConverter(model_locations)
 ### 便利函數
 
 ```python
-from service.markdown_marker import create_marker_converter
+from service.markdown_integrate.marker import create_marker_converter
 
 # 使用便利函數建立轉換器
 converter = create_marker_converter()
@@ -114,14 +114,14 @@ converter = create_marker_converter()
 ### 執行單元測試
 
 ```bash
-cd service/markdown_marker
+cd service/markdown_integrate/marker
 python -m pytest tests/test_marker_converter.py -v
 ```
 
 ### 執行轉換測試
 
 ```bash
-cd service/markdown_marker
+cd service/markdown_integrate/marker
 python tests/test_conversion.py
 python tests/test_conversion_advanced.py
 ```
@@ -129,7 +129,7 @@ python tests/test_conversion_advanced.py
 ### 執行使用範例
 
 ```bash
-cd service/markdown_marker
+cd service/markdown_integrate/marker
 python examples/example_usage.py
 python examples/type_examples.py
 ```
@@ -137,7 +137,7 @@ python examples/type_examples.py
 ### 執行轉換測試
 
 ```bash
-cd service/markdown_marker
+cd service/markdown_integrate/marker
 python tests/test_conversion.py
 python tests/test_conversion_advanced.py
 ```

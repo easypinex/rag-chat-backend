@@ -6,12 +6,12 @@ Service Package
 
 # Import converters that exist
 try:
-    from .markdown_markitdown import MarkitdownConverter
+    from .markdown_integrate.markitdown import MarkitdownConverter
 except ImportError:
     MarkitdownConverter = None
 
 try:
-    from .markdown_marker import MarkerConverter
+    from .markdown_integrate.marker import MarkerConverter
 except ImportError:
     MarkerConverter = None
 

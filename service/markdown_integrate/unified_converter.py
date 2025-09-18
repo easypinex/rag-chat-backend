@@ -14,14 +14,14 @@ from .format_router import FormatRouter
 
 # 嘗試導入轉換器
 try:
-    from ..markdown_marker.marker_converter import MarkerConverter, create_marker_converter
+    from .marker.marker_converter import MarkerConverter, create_marker_converter
     MARKER_AVAILABLE = True
 except ImportError:
     MARKER_AVAILABLE = False
     logging.warning("Marker converter not available")
 
 try:
-    from ..markdown_markitdown.markitdown_converter import MarkitdownConverter
+    from .markitdown.markitdown_converter import MarkitdownConverter
     MARKITDOWN_AVAILABLE = True
 except ImportError:
     MARKITDOWN_AVAILABLE = False
@@ -36,7 +36,7 @@ class UnifiedMarkdownConverter:
     def __init__(self, 
                  marker_model_locations: Optional[Dict[str, str]] = None,
                  markitdown_input_dir: str = "raw_docs",
-                 markitdown_output_dir: str = "service/markdown_markitdown/converted"):
+                 markitdown_output_dir: str = "service/markdown_integrate/markitdown/converted"):
         """
         初始化統一轉換器
         
