@@ -291,10 +291,16 @@ class DocumentAnalyzer:
             # 獲取統計信息
             stats = self.splitter.get_chunk_statistics(chunks)
             
+            # 將 Path 對象轉換為字符串以便 JSON 序列化
+            output_paths_str = {
+                key: str(value) if isinstance(value, Path) else value
+                for key, value in output_paths.items()
+            }
+            
             result = {
                 'file_name': file_path.name,
                 'status': 'success',
-                'output_paths': output_paths,
+                'output_paths': output_paths_str,
                 'chunks_count': len(chunks),
                 'statistics': stats,
                 'used_serialization': used_serialization,
@@ -312,11 +318,19 @@ class DocumentAnalyzer:
             
         except Exception as e:
             logger.error(f"Error processing {file_path.name}: {e}")
+            # 處理 output_paths 的 Path 對象轉換
+            output_paths_str = None
+            if 'output_paths' in locals():
+                output_paths_str = {
+                    key: str(value) if isinstance(value, Path) else value
+                    for key, value in output_paths.items()
+                }
+            
             return {
                 'file_name': file_path.name,
                 'status': 'error',
                 'error': str(e),
-                'output_paths': output_paths if 'output_paths' in locals() else None
+                'output_paths': output_paths_str
             }
     
     def analyze_all_files(self) -> Dict[str, Any]:
