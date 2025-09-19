@@ -5,3 +5,6 @@
 **/raw_docs/**/*.md
 **/json_converted/**/*.md
 service/chunk/analysis/output/**
+# 允許瀏覽目錄（否則無法反忽略裡面的檔案）
+!service/chunk/analysis/output/**/
+!service/chunk/analysis/output/*/*.json
