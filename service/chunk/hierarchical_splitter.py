@@ -241,21 +241,49 @@ class HierarchicalChunkSplitter:
         child_chunks = []
         
         for parent_chunk in parent_chunks:
+            # 在切割子chunk前，先清理表格分隔符
+            cleaned_content = self.table_handler.clean_table_separators(parent_chunk.document.page_content)
+            
+            # 如果內容被清理後變空或太短，跳過這個父chunk
+            if not cleaned_content.strip() or len(cleaned_content.strip()) < 10:
+                logger.warning(f"Skipping parent chunk {parent_chunk.chunk_id} after cleaning: content too short")
+                continue
+            
+            # 創建清理後的Document
+            cleaned_document = Document(
+                page_content=cleaned_content,
+                metadata=parent_chunk.document.metadata.copy()
+            )
+            
             # 對每個父chunk進行子分割，不管大小
             # 使用child_splitter分割
-            sub_documents = self.child_splitter.split_documents([parent_chunk.document])
+            sub_documents = self.child_splitter.split_documents([cleaned_document])
             
             for j, sub_doc in enumerate(sub_documents):
+                # 再次清理子chunk中的表格分隔符
+                final_content = self.table_handler.clean_table_separators(sub_doc.page_content)
+                
+                # 如果子chunk內容太短，跳過
+                if not final_content.strip() or len(final_content.strip()) < 5:
+                    logger.warning(f"Skipping child chunk {j} from parent {parent_chunk.chunk_id}: content too short after cleaning")
+                    continue
+                
+                # 創建最終的Document
+                final_document = Document(
+                    page_content=final_content,
+                    metadata=sub_doc.metadata.copy()
+                )
+                
                 # 生成唯一ID
                 child_id = f"child_{uuid.uuid4().hex[:8]}"
                 
                 # 創建ChildChunk物件
                 child_chunk = ChildChunk(
-                    document=sub_doc,
+                    document=final_document,
                     chunk_id=child_id,
                     parent_chunk_id=parent_chunk.chunk_id,
                     child_index=j,
-                    size=len(sub_doc.page_content),
+                    size=len(final_content),
                     metadata=parent_chunk.metadata.copy()
                 )
                 
@@ -357,17 +385,35 @@ class HierarchicalChunkSplitter:
         # 對於分層分割，我們只合併非常小的表格chunks，保持大部分子chunks
         merged_table_chunks = self._merge_small_table_chunks_only(table_chunks)
         
-        # 清理一般chunks中的表格標記
+        # 清理一般chunks中的表格標記和分隔符
         cleaned_regular_chunks = []
         for chunk in regular_chunks:
+            # 先清理表格標記
             cleaned_content = self.table_handler.clean_table_markers(chunk.document.page_content)
+            # 再清理表格分隔符
+            cleaned_content = self.table_handler.clean_table_separators(cleaned_content)
+            
+            # 如果內容太短，跳過
+            if not cleaned_content.strip() or len(cleaned_content.strip()) < 5:
+                logger.warning(f"Skipping regular chunk {chunk.chunk_id}: content too short after cleaning")
+                continue
+                
             chunk.document = Document(page_content=cleaned_content, metadata=chunk.document.metadata)
             cleaned_regular_chunks.append(chunk)
         
-        # 清理表格chunks中的表格標記
+        # 清理表格chunks中的表格標記和分隔符
         cleaned_table_chunks = []
         for chunk in merged_table_chunks:
+            # 先清理表格標記
             cleaned_content = self.table_handler.clean_table_markers(chunk.document.page_content)
+            # 再清理表格分隔符
+            cleaned_content = self.table_handler.clean_table_separators(cleaned_content)
+            
+            # 如果內容太短，跳過
+            if not cleaned_content.strip() or len(cleaned_content.strip()) < 5:
+                logger.warning(f"Skipping table chunk {chunk.chunk_id}: content too short after cleaning")
+                continue
+                
             chunk.document = Document(page_content=cleaned_content, metadata=chunk.document.metadata)
             cleaned_table_chunks.append(chunk)
         

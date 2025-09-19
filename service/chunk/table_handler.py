@@ -201,6 +201,39 @@ class TableHandler:
         content = content.replace(self.table_end_marker, "")
         return content.strip()
     
+    def clean_table_separators(self, content: str) -> str:
+        """
+        清理表格分隔符，移除無意義的表格行
+        
+        Args:
+            content: 要清理的內容
+            
+        Returns:
+            str: 清理後的內容
+        """
+        lines = content.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            # 檢查是否為純表格分隔符行（只包含 |、-、空格）
+            if re.match(r'^[\s\|\-]+$', line.strip()):
+                # 跳過純分隔符行
+                continue
+            # 檢查是否為連續的表格分隔符行
+            elif '|' in line and re.match(r'^[\s\|\-]+$', line.strip()):
+                # 跳過純分隔符行
+                continue
+            else:
+                cleaned_lines.append(line)
+        
+        # 重新組合內容
+        cleaned_content = '\n'.join(cleaned_lines)
+        
+        # 清理多餘的空行
+        cleaned_content = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_content)
+        
+        return cleaned_content.strip()
+    
     def get_table_statistics(self, chunks: List[Document]) -> Dict[str, Any]:
         """獲取表格統計信息"""
         table_chunks = [chunk for chunk in chunks if self._is_table_chunk(chunk)]
