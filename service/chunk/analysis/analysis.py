@@ -473,11 +473,20 @@ def main():
     parser.add_argument('--output', type=str, default='service/chunk/analysis/output', help='Output directory')
     parser.add_argument('--chunk-size', type=int, default=2000, help='Parent chunk size (default: 2000 for Chinese 32k embedding)')
     parser.add_argument('--chunk-overlap', type=int, default=200, help='Parent chunk overlap (default: 200 for Chinese semantic continuity)')
-    parser.add_argument('--use-hierarchical', action='store_true', default=True, help='Use hierarchical splitting')
+    parser.add_argument('--use-hierarchical', action='store_true', help='Use hierarchical splitting (default: True)')
+    parser.add_argument('--no-hierarchical', action='store_true', help='Disable hierarchical splitting')
     parser.add_argument('--child-chunk-size', type=int, default=350, help='Child chunk size (default: 350, ~100-150 tokens for Chinese rerank 512)')
     parser.add_argument('--child-chunk-overlap', type=int, default=50, help='Child chunk overlap (default: 50 for Chinese semantic continuity)')
     
     args = parser.parse_args()
+    
+    # 處理 hierarchical 參數邏輯
+    # 預設為 True，除非明確指定 --no-hierarchical
+    use_hierarchical = True
+    if args.no_hierarchical:
+        use_hierarchical = False
+    elif args.use_hierarchical:
+        use_hierarchical = True
     
     # 創建分析器
     analyzer = DocumentAnalyzer(
@@ -485,7 +494,7 @@ def main():
         output_base_dir=args.output,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
-        use_hierarchical=args.use_hierarchical,
+        use_hierarchical=use_hierarchical,
         child_chunk_size=args.child_chunk_size,
         child_chunk_overlap=args.child_chunk_overlap
     )
