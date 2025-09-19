@@ -4,3 +4,4 @@
 **/converted/**.md
 **/raw_docs/**/*.md
 **/json_converted/**/*.md
+service/chunk/analysis/output/**

@@ -139,8 +139,9 @@ class ExcelExporter:
             # C欄：分割後的 Chunk
             self.worksheet.cell(row=current_row, column=3, value=chunk.page_content)
             
-            # D欄：Chunk 編號
-            self.worksheet.cell(row=current_row, column=4, value=i)
+            # D欄：Chunk 編號（使用全局編號）
+            global_chunk_number = chunk.metadata.get('global_chunk_number', i)
+            self.worksheet.cell(row=current_row, column=4, value=global_chunk_number)
             
             # E欄：Chunk 長度
             self.worksheet.cell(row=current_row, column=5, value=len(chunk.page_content))
@@ -228,8 +229,9 @@ class ExcelExporter:
             # C欄：分割後的 Chunk
             self.worksheet.cell(row=current_row, column=3, value=chunk.page_content)
             
-            # D欄：Chunk 編號
-            self.worksheet.cell(row=current_row, column=4, value=i)
+            # D欄：Chunk 編號（使用全局編號）
+            global_chunk_number = chunk.metadata.get('global_chunk_number', i)
+            self.worksheet.cell(row=current_row, column=4, value=global_chunk_number)
             
             # E欄：Chunk 長度
             self.worksheet.cell(row=current_row, column=5, value=len(chunk.page_content))
@@ -386,10 +388,15 @@ class ExcelExporter:
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
         
-        # 設置 A欄 的對齊方式（合併的單元格）
+        # 設置 A欄 和 B欄 的對齊方式（合併的單元格）
         for row in range(2, self.worksheet.max_row + 1):
-            cell = self.worksheet.cell(row=row, column=1)
-            cell.alignment = Alignment(vertical='center', horizontal='center', wrap_text=True)
+            # A欄：原始內容
+            cell_a = self.worksheet.cell(row=row, column=1)
+            cell_a.alignment = Alignment(vertical='top', horizontal='left', wrap_text=True)
+            
+            # B欄：正規化後內容
+            cell_b = self.worksheet.cell(row=row, column=2)
+            cell_b.alignment = Alignment(vertical='top', horizontal='left', wrap_text=True)
     
     def create_summary_sheet(self, chunks: List[Document], output_path: str):
         """創建統計摘要工作表"""

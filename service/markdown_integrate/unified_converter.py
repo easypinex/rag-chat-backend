@@ -87,7 +87,7 @@ class UnifiedMarkdownConverter:
         Args:
             file_path: 輸入檔案路徑
             output_path: 輸出檔案路徑（僅當 save_to_file=True 時使用）
-            save_to_file: 是否保存到檔案
+            save_to_file: 是否保存到成 .md 檔案
             
         Returns:
             ConversionResult: 統一格式的轉換結果

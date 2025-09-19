@@ -14,6 +14,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from langchain_core.documents import Document
 
 from ..markdown_integrate.data_models import ConversionResult
+from ..serialization import ConversionDeserializer
 from .table_handler import TableHandler
 from .markdown_normalizer import MarkdownNormalizer
 from .excel_exporter import ExcelExporter
@@ -86,19 +87,25 @@ class ChunkSplitter:
                       input_data: Union[str, Path, ConversionResult],
                       output_excel: bool = False,
                       output_path: Optional[str] = None,
-                      md_output_path: Optional[str] = None) -> List[Document]:
+                      md_output_path: Optional[str] = None,
+                      from_serialization: bool = False) -> List[Document]:
         """
         分割 Markdown 內容
         
         Args:
-            input_data: 輸入數據（MD文件 路徑或 ConversionResult 對象）
+            input_data: 輸入數據（MD文件 路徑、ConversionResult 對象或序列化文件路徑）
             output_excel: 是否輸出報告 Excel 文件
             output_path: Excel 輸出路徑
-            md_output_path: Markdown 輸出路徑
+            md_output_path: Markdown 輸出路徑, 注意此版本是以Chunk為單位的Markdown而非原始轉換的Markdown
+            from_serialization: 是否從序列化文件載入 ConversionResult
             
         Returns:
             List[Document]: 分割後的文檔列表
         """
+        # 處理序列化文件載入
+        if from_serialization and isinstance(input_data, (str, Path)):
+            input_data = self._load_from_serialization(input_data)
+        
         # 如果是 ConversionResult，檢查是否有頁面信息
         if isinstance(input_data, ConversionResult):
             # 檢查是否有頁面信息
@@ -198,20 +205,23 @@ class ChunkSplitter:
             
             # 對頁面分割結果進行進一步處理
             page_chunks = []
+            chunk_order = 0  # 頁面內chunk順序
             for doc in page_splits:
                 if len(doc.page_content) > self.chunk_size:
                     # 如果太大，進一步分割
                     sub_chunks = self.text_splitter.split_documents([doc])
                     for sub_chunk in sub_chunks:
                         # 為每個子 chunk 添加頁碼信息
-                        enhanced_chunk = self._enhance_chunk_with_page_info(sub_chunk, page, conversion_result)
+                        enhanced_chunk = self._enhance_chunk_with_page_info(sub_chunk, page, conversion_result, chunk_order)
                         all_chunks.append(enhanced_chunk)
                         page_chunks.append(enhanced_chunk)
+                        chunk_order += 1
                 else:
                     # 直接添加頁碼信息
-                    enhanced_chunk = self._enhance_chunk_with_page_info(doc, page, conversion_result)
+                    enhanced_chunk = self._enhance_chunk_with_page_info(doc, page, conversion_result, chunk_order)
                     all_chunks.append(enhanced_chunk)
                     page_chunks.append(enhanced_chunk)
+                    chunk_order += 1
             
             # 儲存頁面 chunks 信息
             page_chunks_info.append({
@@ -227,6 +237,9 @@ class ChunkSplitter:
         
         # 合併過短的 chunks（通常是標題）
         all_chunks = self._merge_short_chunks(all_chunks)
+        
+        # 按頁碼和chunk順序排序
+        all_chunks = self._sort_chunks_by_page_and_order(all_chunks)
         
         logger.info(f"Split {len(conversion_result.pages)} pages into {len(all_chunks)} chunks")
         
@@ -295,7 +308,7 @@ class ChunkSplitter:
         logger.info(f"Merged short chunks: {len(chunks)} -> {len(merged_chunks)}")
         return merged_chunks
     
-    def _enhance_chunk_with_page_info(self, chunk: Document, page: 'PageInfo', conversion_result: ConversionResult) -> Document:
+    def _enhance_chunk_with_page_info(self, chunk: Document, page, conversion_result: ConversionResult, chunk_order: int = 0) -> Document:
         """為 chunk 添加頁碼、頁面標題和文件信息"""
         enhanced_metadata = chunk.metadata.copy()
         
@@ -304,6 +317,9 @@ class ChunkSplitter:
         
         # 添加頁面標題信息
         enhanced_metadata['page_title'] = page.title if page.title else None
+        
+        # 添加chunk在頁面內的順序
+        enhanced_metadata['chunk_order'] = chunk_order
         
         # 添加文件信息
         enhanced_metadata.update({
@@ -464,9 +480,41 @@ class ChunkSplitter:
         # 合併所有 chunks
         all_chunks = cleaned_regular_chunks + merged_table_chunks
         
-        # 按原始順序排序（如果需要）
+        # 按頁碼和chunk順序排序
+        all_chunks = self._sort_chunks_by_page_and_order(all_chunks)
         return all_chunks
     
+    def _sort_chunks_by_page_and_order(self, chunks: List[Document]) -> List[Document]:
+        """
+        按照頁碼和chunk順序排序chunks
+        
+        Args:
+            chunks: 要排序的chunks列表
+            
+        Returns:
+            List[Document]: 排序後的chunks列表
+        """
+        def sort_key(chunk):
+            # 獲取頁碼，如果沒有頁碼則設為0
+            page_number = chunk.metadata.get('page_number')
+            if page_number is None:
+                page_number = 0
+            
+            # 獲取chunk在頁面內的順序（如果有的話）
+            chunk_order = chunk.metadata.get('chunk_order', 0)
+            
+            # 返回排序鍵：(頁碼, chunk順序)
+            return (page_number, chunk_order)
+        
+        # 排序chunks
+        sorted_chunks = sorted(chunks, key=sort_key)
+        
+        # 為每個chunk添加全局chunk編號
+        for i, chunk in enumerate(sorted_chunks, 1):
+            chunk.metadata['global_chunk_number'] = i
+        
+        logger.info(f"Sorted {len(sorted_chunks)} chunks by page and order")
+        return sorted_chunks
     
     def _export_to_excel(self, chunks: List[Document], original_content: str, output_path: Optional[str], normalized_content: Optional[str] = None):
         """導出到 Excel 文件"""
@@ -644,3 +692,18 @@ class ChunkSplitter:
         # 導出到 Excel
         exporter.export_chunks_to_excel_with_page_content(chunks, page_chunks_info, output_path)
         logger.info(f"Chunks exported to Excel: {output_path}")
+    
+    def _load_from_serialization(self, file_path: Union[str, Path]) -> ConversionResult:
+        """
+        從序列化文件載入 ConversionResult
+        
+        Args:
+            file_path: 序列化文件路徑
+            
+        Returns:
+            ConversionResult: 反序列化後的 ConversionResult 對象
+        """
+        deserializer = ConversionDeserializer()
+        conversion_result = deserializer.deserialize(str(file_path))
+        logger.info(f"Loaded ConversionResult from serialization: {file_path}")
+        return conversion_result
