@@ -1,6 +1,18 @@
 # Chunk 分割模組
 
-基於 LangChain 的智能 Markdown 分割服務，專門為 RAG 系統設計，支援基於頁面的智能分割和內容正規化。
+基於 LangChain 的智能 Markdown 分割服務，專門為 RAG 系統設計，提供兩種分割器以滿足不同使用場景的需求。
+
+## 🔧 兩種分割器
+
+### 1. **ChunkSplitter** (傳統分割器)
+- **適用場景**: 一般文檔處理、簡單 RAG 系統
+- **特點**: 單層分割，直接輸出最終 chunks
+- **優勢**: 簡單易用，處理速度快
+
+### 2. **HierarchicalChunkSplitter** (分層分割器) ⭐ **推薦**
+- **適用場景**: 複雜文檔、高精度 RAG 系統、表格密集文檔
+- **特點**: 雙層分割架構 (Parent + Child chunks)
+- **優勢**: 精準控制 chunk 大小，特別優化表格處理
 
 ## 🚀 功能特色
 
@@ -13,26 +25,42 @@
 - ✅ **豐富 metadata**: 包含檔名、頁碼、標題級數、轉換器等信息
 - ✅ **Excel 分析**: 支援詳細的 Excel 分析報告，包含頁面級原始內容
 - ✅ **多種輸入**: 支援文件路徑和 ConversionResult 對象輸入
+- ✅ **分層分析**: 分層分割器提供詳細的分組效率和大小分布分析
 
 ## 📁 目錄結構
 
 ```
 service/chunk/
-├── __init__.py              # 模組初始化
-├── chunk_splitter.py        # 核心分割器
-├── excel_exporter.py        # Excel 導出器
-├── markdown_normalizer.py   # 內容正規化器
-├── table_handler.py         # 表格處理器
-├── README.md               # 詳細文檔
-├── QUICK_START.md          # 快速開始指南
-├── test/                   # 測試文件
-│   ├── test_chunk_splitter.py
-│   ├── test_normalizer.py
-│   └── test_table_fix.py
-├── examples/               # 使用範例
-│   ├── basic_usage.py
-│   └── advanced_usage.py
-└── docs/                   # 詳細文檔
+├── __init__.py                    # 模組初始化
+├── chunk_splitter.py              # 傳統分割器
+├── hierarchical_splitter.py       # 分層分割器 ⭐ 推薦
+├── hierarchical_models.py          # 分層分割資料模型
+├── excel_exporter.py              # Excel 導出器
+├── markdown_normalizer.py         # 內容正規化器
+├── table_handler.py               # 表格處理器
+├── README.md                      # 詳細文檔
+├── QUICK_START.md                 # 快速開始指南
+├── HIERARCHICAL_README.md         # 分層分割詳細文檔
+├── test/                          # 測試文件
+│   ├── test_chunk_splitter.py     # 傳統分割器測試
+│   ├── test_hierarchical.py       # 分層分割器測試
+│   ├── test_excel_output.py       # Excel 輸出測試
+│   ├── test_new_excel_format.py   # 新 Excel 格式測試
+│   ├── test_parent_overlap.py     # 父層重疊測試
+│   ├── test_retriever_integration.py # 檢索器整合測試
+│   ├── test_normalizer.py         # 正規化器測試
+│   └── test_table_fix.py          # 表格修復測試
+├── examples/                      # 使用範例
+│   ├── basic_usage.py             # 基本使用範例
+│   ├── advanced_usage.py          # 進階使用範例
+│   ├── hierarchical_example.py   # 分層分割範例 ⭐ 推薦
+│   ├── excel_output_example.py   # Excel 輸出範例
+│   └── retriever_integration_example.py # 檢索器整合範例
+├── analysis/                      # 分析工具
+│   ├── analysis.py                # 文檔分析器
+│   ├── example_usage.py           # 分析器使用範例
+│   └── output/                    # 分析結果輸出
+└── docs/                          # 詳細文檔
     └── (未來擴展)
 ```
 
@@ -40,7 +68,7 @@ service/chunk/
 
 > 📖 詳細的使用指南請參考 [QUICK_START.md](QUICK_START.md)
 
-### 基本使用
+### 1. 傳統分割器 (ChunkSplitter)
 
 ```python
 from service.chunk import ChunkSplitter
@@ -50,11 +78,11 @@ from service.markdown_integrate import UnifiedMarkdownConverter
 converter = UnifiedMarkdownConverter()
 result = converter.convert_file("document.pdf")  # 或 "document.xlsx"
 
-# 創建分割器
+# 創建傳統分割器
 splitter = ChunkSplitter(
     chunk_size=1000,           # 每個 chunk 的最大字符數
     chunk_overlap=200,         # chunk 之間的重疊字符數
-    normalize_output=True,    # 啟用內容正規化
+    normalize_output=True,     # 啟用內容正規化
     keep_tables_together=True  # 保持表格完整性
 )
 
@@ -68,8 +96,40 @@ chunks = splitter.split_markdown(
 print(f"分割完成: {len(chunks)} 個 chunks")
 ```
 
-### 分析結果
+### 2. 分層分割器 (HierarchicalChunkSplitter) ⭐ **推薦**
 
+```python
+from service.chunk.hierarchical_splitter import HierarchicalChunkSplitter
+from service.markdown_integrate import UnifiedMarkdownConverter
+
+# 轉換文件到 Markdown
+converter = UnifiedMarkdownConverter()
+result = converter.convert_file("document.pdf")  # 或 "document.xlsx"
+
+# 創建分層分割器（中文優化參數）
+splitter = HierarchicalChunkSplitter(
+    parent_chunk_size=2000,      # 父chunk大小（適合中文32k embedding）
+    child_chunk_size=350,        # 子chunk大小（約100-150 tokens，適合中文rerank 512）
+    child_chunk_overlap=50,      # 子chunk重疊（保持中文語義連貫性）
+    keep_tables_together=True,  # 保持表格完整性
+    normalize_output=True       # 正規化輸出
+)
+
+# 進行分層分割
+hierarchical_result = splitter.split_hierarchically(
+    input_data=result,
+    output_excel=True,
+    output_path="output/hierarchical_chunks.xlsx"
+)
+
+print(f"父chunks: {len(hierarchical_result.parent_chunks)}")
+print(f"子chunks: {len(hierarchical_result.child_chunks)}")
+print(f"分組效率: {hierarchical_result.grouping_analysis.grouping_efficiency:.2%}")
+```
+
+### 3. 分析結果
+
+#### 傳統分割器分析
 ```python
 # 基本統計
 total_chunks = len(chunks)
@@ -89,17 +149,52 @@ print(f"頁碼覆蓋: {unique_pages} 頁")
 print(f"表格 chunks: {len(table_chunks)}")
 ```
 
+#### 分層分割器分析
+```python
+# 分層統計
+print(f"父chunks: {len(hierarchical_result.parent_chunks)}")
+print(f"子chunks: {len(hierarchical_result.child_chunks)}")
+print(f"分組效率: {hierarchical_result.grouping_analysis.grouping_efficiency:.2%}")
+
+# 大小分布分析
+size_dist = hierarchical_result.size_distribution
+print(f"平均子chunk大小: {size_dist.avg_child_size:.1f}")
+print(f"大小變異係數: {size_dist.size_variance:.2f}")
+
+# 表格處理統計
+table_stats = hierarchical_result.table_handling_stats
+print(f"表格chunks: {table_stats.table_chunks_count}")
+print(f"表格合併數: {table_stats.tables_merged}")
+
+# 分組分析
+grouping = hierarchical_result.grouping_analysis
+print(f"有效分組: {grouping.valid_groups}")
+print(f"空分組: {grouping.empty_groups}")
+print(f"單一子chunk分組: {grouping.single_child_groups}")
+```
+
 ## 🔧 主要組件
 
-### ChunkSplitter
+### ChunkSplitter (傳統分割器)
 
-核心分割器類，提供以下功能：
+傳統分割器類，提供以下功能：
 
 - **基於頁面分割**: 使用 PDF 原始頁面結構進行分割，確保 100% 頁碼覆蓋
 - **智能合併**: 自動合併過短的標題 chunks（<30字符）
 - **表格處理**: 自動檢測和保持表格完整性
 - **內容正規化**: 清理多餘符號、空格和 HTML 標籤
 - **豐富 metadata**: 包含檔名、頁碼、標題級數等信息
+
+### HierarchicalChunkSplitter (分層分割器) ⭐ **推薦**
+
+分層分割器類，提供以下功能：
+
+- **雙層分割架構**: Parent + Child chunks 設計，精準控制大小
+- **中文優化**: 針對中文文檔優化的參數設置
+- **表格友好**: 特別優化大型表格的處理
+- **分組分析**: 提供詳細的分組效率和大小分布分析
+- **RAG 優化**: 適合高質量 RAG 系統的 chunk 大小控制
+- **豐富分析**: 包含分組統計、表格處理統計、大小分布等詳細信息
 
 ### ExcelExporter
 
@@ -131,7 +226,7 @@ Excel 導出器，提供以下功能：
 
 ## 配置選項
 
-### ChunkSplitter 參數
+### ChunkSplitter 參數 (傳統分割器)
 
 ```python
 ChunkSplitter(
@@ -143,12 +238,35 @@ ChunkSplitter(
         ("###", "Header 3"),
         ("####", "Header 4"),
     ],
-    keep_tables_together=True           # 是否保持表格完整性
+    keep_tables_together=True,          # 是否保持表格完整性
+    normalize_output=True,              # 是否正規化輸出
+    output_base_dir="service/output"    # 輸出基礎目錄
+)
+```
+
+### HierarchicalChunkSplitter 參數 (分層分割器) ⭐ **推薦**
+
+```python
+HierarchicalChunkSplitter(
+    parent_chunk_size=2000,             # 父層chunk大小（適合中文32k embedding）
+    parent_chunk_overlap=200,           # 父層chunk重疊大小（保持中文語義連貫性）
+    child_chunk_size=350,               # 子層chunk大小（約100-150 tokens，適合中文rerank 512）
+    child_chunk_overlap=50,             # 子層chunk重疊大小（保持中文語義連貫性）
+    headers_to_split_on=[               # 要分割的標題層級
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+        ("####", "Header 4"),
+    ],
+    keep_tables_together=True,          # 是否保持表格完整性
+    normalize_output=True,              # 是否正規化輸出
+    output_base_dir="service/output"    # 輸出基礎目錄
 )
 ```
 
 ### 輸出選項
 
+#### 傳統分割器輸出
 ```python
 chunks = splitter.split_markdown(
     input_data=input_data,
@@ -156,6 +274,19 @@ chunks = splitter.split_markdown(
     output_path="output/chunks.xlsx",  # Excel 輸出路徑
     md_output_path="output/chunks.md"  # Markdown 輸出路徑
 )
+```
+
+#### 分層分割器輸出
+```python
+hierarchical_result = splitter.split_hierarchically(
+    input_data=input_data,
+    output_excel=True,                  # 是否輸出 Excel 文件
+    output_path="output/hierarchical_chunks.xlsx",  # Excel 輸出路徑
+    md_output_path="output/hierarchical_chunks.md"  # Markdown 輸出路徑
+)
+
+# 分層分割器返回 HierarchicalSplitResult 對象
+# 包含 parent_chunks, child_chunks, grouping_analysis 等
 ```
 
 ## 統計信息
@@ -181,6 +312,7 @@ print(f"平均表格長度: {table_stats['avg_table_length']}")
 
 ### 運行測試
 
+#### 傳統分割器測試
 ```bash
 # 基本測試
 python service/chunk/test/test_chunk_splitter.py
@@ -192,23 +324,51 @@ python service/chunk/test/test_normalizer.py
 python service/chunk/test/test_table_fix.py
 ```
 
+#### 分層分割器測試
+```bash
+# 分層分割器測試
+python service/chunk/test/test_hierarchical.py
+
+# Excel 輸出測試
+python service/chunk/test/test_excel_output.py
+
+# 新 Excel 格式測試
+python service/chunk/test/test_new_excel_format.py
+
+# 父層重疊測試
+python service/chunk/test/test_parent_overlap.py
+
+# 檢索器整合測試
+python service/chunk/test/test_retriever_integration.py
+```
+
 ### 使用範例
 
 ```bash
-# 基本使用範例
+# 基本使用範例（傳統分割器）
 python service/chunk/examples/basic_usage.py
 
-# 進階使用範例
+# 進階使用範例（傳統分割器）
 python service/chunk/examples/advanced_usage.py
+
+# 分層分割範例（分層分割器）⭐ 推薦
+python service/chunk/examples/hierarchical_example.py
+
+# Excel 輸出範例
+python service/chunk/examples/excel_output_example.py
+
+# 檢索器整合範例
+python service/chunk/examples/retriever_integration_example.py
 ```
 
 測試腳本會：
 
 1. 使用 UnifiedMarkdownConverter 轉換 PDF 文件
-2. 使用 ChunkSplitter 分割 Markdown 內容
+2. 使用相應的分割器分割 Markdown 內容
 3. 導出到 Excel 和 Markdown 文件
 4. 顯示詳細的統計信息
 5. 驗證頁碼覆蓋和內容正規化
+6. 分層分割器額外提供分組效率和大小分布分析
 
 ## 📊 輸出格式
 
@@ -271,9 +431,28 @@ python service/chunk/examples/advanced_usage.py
 
 ## 範例輸出
 
+### 傳統分割器輸出
+
 測試成功後會生成：
 
 - `service/chunk/output/chunk/chunks.xlsx` - Excel 輸出文件
 - `service/chunk/output/md/chunks.md` - Markdown 輸出文件
 
-Excel 文件包含完整的原始內容和分割後的 chunks，便於人工檢核和分析。
+### 分層分割器輸出
+
+測試成功後會生成：
+
+- `service/chunk/output/chunk/hierarchical_chunks.xlsx` - Excel 輸出文件
+- `service/chunk/output/md/hierarchical_chunks.md` - Markdown 輸出文件
+
+### 分析工具輸出
+
+使用分析工具會生成：
+
+- `service/chunk/analysis/output/` - 分析結果目錄
+  - `analysis_summary.json` - 分析摘要
+  - `[文件名]_Chunk.xlsx` - 分層分割 Excel 文件
+  - `[文件名]_ConversionResult.json` - 轉換結果
+  - `[文件名]_Markdown.md` - Markdown 文件
+
+Excel 文件包含完整的原始內容和分割後的 chunks，便於人工檢核和分析。分層分割器額外提供詳細的分組效率和大小分布分析。

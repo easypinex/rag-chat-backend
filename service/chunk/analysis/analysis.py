@@ -20,6 +20,7 @@ sys.path.insert(0, str(project_root))
 
 # 直接導入模組
 from service.chunk.chunk_splitter import ChunkSplitter
+from service.chunk.hierarchical_splitter import HierarchicalChunkSplitter
 from service.markdown_integrate.unified_converter import UnifiedMarkdownConverter
 from service.serialization import ConversionSerializer, ConversionDeserializer
 
@@ -37,16 +38,22 @@ class DocumentAnalyzer:
     def __init__(self, 
                  raw_docs_dir: str = None,
                  output_base_dir: str = "service/chunk/analysis/output",
-                 chunk_size: int = 1000,
-                 chunk_overlap: int = 200):
+                 chunk_size: int = 2000,  # 父層chunk大小，適合中文32k embedding
+                 chunk_overlap: int = 200,  # 父層重疊，保持中文語義連貫性
+                 use_hierarchical: bool = True,
+                 child_chunk_size: int = 350,  # 子層chunk大小，約100-150 tokens，適合中文rerank 512
+                 child_chunk_overlap: int = 50):  # 子層重疊，保持中文語義連貫性
         """
-        初始化分析器
+        初始化分析器 - 針對中文優化
         
         Args:
             raw_docs_dir: 原始文件目錄
             output_base_dir: 輸出基礎目錄
-            chunk_size: chunk 大小
-            chunk_overlap: chunk 重疊大小
+            chunk_size: 父層chunk大小 (預設2000字，適合中文32k embedding)
+            chunk_overlap: 父層chunk重疊大小 (預設200字，保持中文語義連貫性)
+            use_hierarchical: 是否使用分層分割
+            child_chunk_size: 子chunk大小 (預設350字，約100-150 tokens，適合中文rerank 512)
+            child_chunk_overlap: 子chunk重疊大小 (預設50字，保持中文語義連貫性)
         """
         # 設定預設的 raw_docs 目錄
         if raw_docs_dir is None:
@@ -66,14 +73,28 @@ class DocumentAnalyzer:
             self.output_base_dir = Path(output_base_dir)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.use_hierarchical = use_hierarchical
+        self.child_chunk_size = child_chunk_size
+        self.child_chunk_overlap = child_chunk_overlap
         
-        # 初始化轉換器和分割器
+        # 初始化轉換器
         self.converter = UnifiedMarkdownConverter()
-        self.splitter = ChunkSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            normalize_output=True
-        )
+        
+        # 根據設定選擇分割器
+        if use_hierarchical:
+            self.splitter = HierarchicalChunkSplitter(
+                parent_chunk_size=chunk_size,
+                parent_chunk_overlap=chunk_overlap,
+                child_chunk_size=child_chunk_size,
+                child_chunk_overlap=child_chunk_overlap,
+                normalize_output=True
+            )
+        else:
+            self.splitter = ChunkSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                normalize_output=True
+            )
         
         # 初始化序列化器
         self.serializer = ConversionSerializer()
@@ -280,16 +301,44 @@ class DocumentAnalyzer:
                 f.write(conversion_result.content)
             logger.info(f"Saved Markdown: {output_paths['markdown']}")
             
-            # 使用 ChunkSplitter 進行分割
+            # 使用分割器進行分割
             logger.info(f"Splitting {file_path.name} into chunks...")
-            chunks = self.splitter.split_markdown(
-                input_data=conversion_result,
-                output_excel=True,
-                output_path=str(output_paths['excel'])
-            )
             
-            # 獲取統計信息
-            stats = self.splitter.get_chunk_statistics(chunks)
+            if self.use_hierarchical:
+                # 使用分層分割
+                result = self.splitter.split_hierarchically(
+                    input_data=conversion_result,
+                    output_excel=True,
+                    output_path=str(output_paths['excel'])
+                )
+                
+                # 獲取統計信息
+                stats = self.splitter.get_chunk_statistics(result)
+                chunks = result.child_chunks  # 使用子chunks作為最終結果
+                
+                # 添加分層分析信息
+                hierarchical_info = {
+                    'parent_chunks_count': len(result.parent_chunks),
+                    'child_chunks_count': len(result.child_chunks),
+                    'grouping_analysis': {
+                        'avg_children_per_parent': result.grouping_analysis.avg_children_per_parent,
+                        'grouping_efficiency': result.grouping_analysis.grouping_efficiency,
+                        'parent_size_stats': result.grouping_analysis.parent_size_stats,
+                        'child_size_stats': result.grouping_analysis.child_size_stats,
+                        'table_handling_stats': result.grouping_analysis.table_handling_stats
+                    }
+                }
+            else:
+                # 使用傳統分割
+                chunks = self.splitter.split_markdown(
+                    input_data=conversion_result,
+                    output_excel=True,
+                    output_path=str(output_paths['excel'])
+                )
+                
+                # 獲取統計信息
+                stats = self.splitter.get_chunk_statistics(chunks)
+                hierarchical_info = None
             
             # 將 Path 對象轉換為字符串以便 JSON 序列化
             output_paths_str = {
@@ -310,7 +359,9 @@ class DocumentAnalyzer:
                     'total_pages': conversion_result.metadata.total_pages,
                     'total_tables': conversion_result.metadata.total_tables,
                     'converter_used': conversion_result.metadata.converter_used
-                }
+                },
+                'hierarchical_info': hierarchical_info,
+                'splitter_type': 'hierarchical' if self.use_hierarchical else 'traditional'
             }
             
             logger.info(f"Successfully processed {file_path.name}: {len(chunks)} chunks")
@@ -420,8 +471,11 @@ def main():
     parser.add_argument('--file', type=str, help='Analyze specific file by name')
     parser.add_argument('--raw-docs', type=str, default='raw_docs', help='Raw documents directory')
     parser.add_argument('--output', type=str, default='service/chunk/analysis/output', help='Output directory')
-    parser.add_argument('--chunk-size', type=int, default=1000, help='Chunk size')
-    parser.add_argument('--chunk-overlap', type=int, default=200, help='Chunk overlap')
+    parser.add_argument('--chunk-size', type=int, default=2000, help='Parent chunk size (default: 2000 for Chinese 32k embedding)')
+    parser.add_argument('--chunk-overlap', type=int, default=200, help='Parent chunk overlap (default: 200 for Chinese semantic continuity)')
+    parser.add_argument('--use-hierarchical', action='store_true', default=True, help='Use hierarchical splitting')
+    parser.add_argument('--child-chunk-size', type=int, default=350, help='Child chunk size (default: 350, ~100-150 tokens for Chinese rerank 512)')
+    parser.add_argument('--child-chunk-overlap', type=int, default=50, help='Child chunk overlap (default: 50 for Chinese semantic continuity)')
     
     args = parser.parse_args()
     
@@ -430,7 +484,10 @@ def main():
         raw_docs_dir=args.raw_docs,
         output_base_dir=args.output,
         chunk_size=args.chunk_size,
-        chunk_overlap=args.chunk_overlap
+        chunk_overlap=args.chunk_overlap,
+        use_hierarchical=args.use_hierarchical,
+        child_chunk_size=args.child_chunk_size,
+        child_chunk_overlap=args.child_chunk_overlap
     )
     
     if args.file:
